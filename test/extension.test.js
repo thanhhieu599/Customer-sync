@@ -93,6 +93,15 @@ test('tiện ích: hết phiên GIỮA lượt (đang ghi) → dừng ngay, khô
   const r = await ext.run();
   assert.ok(r.session, 'dừng vì hết phiên');
   assert.strictEqual(ext.rows().filter(x => x.status === 'create_failed').length, 0);
+  // "Gốc" (lượt trước) + 2 khách tạo xong trước khi hết phiên (lệnh thứ 2 thành công rồi mới bị đăng xuất)
+  assert.strictEqual(pairs(ext).length, 3, 'khách tạo xong TRƯỚC khi hết phiên vẫn được lưu vào bảng ghép');
+  // Đăng nhập lại → làm nốt, không tạo trùng
+  ext.state.loggedIn = true; ext.omni.handle = orig;
+  const r2 = await ext.run();
+  assert.ok(r2.ok, r2.error);
+  assert.strictEqual(pairs(ext).length, 6, 'Gốc + 5 khách Web');
+  const names = [...ext.omni.db.values()].map(c => c.name).filter(n => /^Web /.test(n));
+  assert.strictEqual(new Set(names).size, names.length, 'không có khách trùng trên Omni');
 });
 
 test('tiện ích: CHẠY THỬ không ghi gì; sai API key Web báo rõ ràng', async () => {

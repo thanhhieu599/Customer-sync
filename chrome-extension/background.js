@@ -42,10 +42,12 @@ function validateConfig(cfg) {
   if (missing.length) throw new Error('Thiếu hoặc sai cấu hình: ' + missing.join(', '));
 }
 
-function makeClients(cfg) {
+/** quick = true: kiểm tra kết nối, chỉ thử 2 lần để người dùng có kết quả nhanh */
+function makeClients(cfg, quick) {
+  var o = quick ? { attempts: 2, retryBaseMs: 1000 } : {};
   return {
-    web: new WebClient({ base: cfg.webBase, key: cfg.webKey, secret: cfg.webSecret }),
-    omni: new OmniTabClient({ base: cfg.omniBase })
+    web: new WebClient(Object.assign({ base: cfg.webBase, key: cfg.webKey, secret: cfg.webSecret }, o)),
+    omni: new OmniTabClient(Object.assign({ base: cfg.omniBase }, o))
   };
 }
 
@@ -118,7 +120,7 @@ async function runSync(trigger) {
   if (!(await acquireLock())) return { skipped: true, message: 'Đang có lượt khác chạy' };
   var log = new LogBuffer();
   var started = Date.now();
-  var outcome;
+  var outcome, rows = null, ecfg = null, executing = false;
   try {
     var cfg = await getConfig();
     validateConfig(cfg);
@@ -128,12 +130,13 @@ async function runSync(trigger) {
     await c.omni.ensureTab();
     var omniList = await c.omni.listCustomers();
     var webList = await c.web.listCustomers();
-    var rows = (await chrome.storage.local.get('rows')).rows || [];
-    var ecfg = engineCfg(cfg);
+    rows = (await chrome.storage.local.get('rows')).rows || [];
+    ecfg = engineCfg(cfg);
     var result = SyncEngine.prepare(omniList, webList, rows, ecfg, now);
     var gen = SyncEngine.execute({ actions: result.actions, rows: rows, cfg: ecfg, now: now, log: log,
                                    clock: function () { return Date.now(); },
                                    budgetMs: RUN_BUDGET_MS - (Date.now() - started) });
+    executing = true;
     var done = await SyncEngine.runAsync(gen, c);
     if (!ecfg.dryRun) await chrome.storage.local.set({ rows: rows });
     var summary = SyncEngine.summary(ecfg, omniList.length, webList.length, result.stats, done,
@@ -147,6 +150,8 @@ async function runSync(trigger) {
     outcome = { ok: true, summary: summary, stats: result.stats, done: done };
   } catch (e) {
     var isSession = e && e.kind === 'session';
+    // Dừng giữa lượt: vẫn lưu những việc ĐÃ làm xong để lượt sau không làm lại
+    if (executing && rows && ecfg && !ecfg.dryRun) await chrome.storage.local.set({ rows: rows });
     log.add('ERROR', 'DỪNG', '', '', '', e.message);
     await setStatus(isSession ? 'session' : 'error', e.message, { lastRunAt: new Date().toISOString() });
     await alertUser(isSession ? 'session' : 'stopped',
@@ -164,7 +169,7 @@ async function selfTest() {
   var cfg = await getConfig();
   var lines = [];
   try { validateConfig(cfg); } catch (e) { return { ok: false, text: '❌ ' + e.message }; }
-  var c = makeClients(cfg);
+  var c = makeClients(cfg, true);
   var ok = true;
   try {
     var w = await c.web.countCustomers();

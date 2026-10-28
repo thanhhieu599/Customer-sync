@@ -31,6 +31,7 @@ function OmniTabClient(opts) {
   this.minGapMs = opts.minGapMs == null ? 300 : opts.minGapMs;
   this.lastCall = 0;
   this.retryBaseMs = opts.retryBaseMs == null ? 1500 : opts.retryBaseMs;
+  this.attempts = opts.attempts || 5;
 }
 
 OmniTabClient.prototype.isLoginUrl_ = function (url) {
@@ -82,7 +83,8 @@ function waitTabComplete_(tabId, timeoutMs) {
 OmniTabClient.prototype.request = async function (method, path, body) {
   if (!this.tabId) await this.ensureTab();
   var url = '/admin/' + path;
-  for (var attempt = 0; attempt < 5; attempt++) {
+  var lastErr = '';
+  for (var attempt = 0; attempt < this.attempts; attempt++) {
     var wait = this.minGapMs - (Date.now() - this.lastCall);
     if (wait > 0) await sleep(wait);
     this.lastCall = Date.now();
@@ -94,8 +96,11 @@ OmniTabClient.prototype.request = async function (method, path, body) {
       });
       res = out && out[0] && out[0].result;
     } catch (e) {
-      // Tab bị đóng / tải lại giữa chừng → mở lại tab rồi thử tiếp
+      // Tab bị đóng / tải lại giữa chừng / trang lỗi mạng → chờ, mở lại tab rồi thử tiếp
+      if (e && e.fatal) throw e;
+      lastErr = e.message;
       this.tabId = null;
+      await sleep(this.retryBaseMs * Math.pow(2, attempt));
       await this.ensureTab();
       continue;
     }
@@ -103,14 +108,15 @@ OmniTabClient.prototype.request = async function (method, path, body) {
     if (res.status === 401 || (res.redirected && this.isLoginUrl_(res.url)) || /^\s*</.test(res.text)) {
       throw FatalError('Phiên đăng nhập Sapo Omni đã hết hạn. Mở tab Sapo Omni và đăng nhập lại.', 'session');
     }
-    if (res.status === 429 || res.status >= 500) { await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }
+    if (res.status === 429 || res.status >= 500) { lastErr = 'HTTP ' + res.status; await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }
     if (res.status === 403) throw FatalError('[omni] tài khoản đang đăng nhập không có quyền (HTTP 403): ' + res.text.slice(0, 200), 'permission');
     if (res.status >= 400) throw new Error('[omni] ' + method.toUpperCase() + ' ' + path + ' → HTTP ' + res.status + ': ' + res.text.slice(0, 300));
     if (!res.text) return {};
     try { return JSON.parse(res.text); }
     catch (e) { throw new Error('[omni] ' + path + ' không trả về JSON: ' + res.text.slice(0, 200)); }
   }
-  throw new Error('[omni] ' + method.toUpperCase() + ' ' + path + ' thất bại sau 5 lần thử');
+  throw FatalError('[omni] Không kết nối được Sapo Omni sau ' + this.attempts + ' lần thử (' + lastErr + '). ' +
+                   'Kiểm tra mạng Internet và tab Sapo Omni.', 'network');
 };
 
 // ---------------------------------------------------------------------------
@@ -121,10 +127,12 @@ function WebClient(opts) {
   this.minGapMs = opts.minGapMs == null ? 350 : opts.minGapMs;
   this.lastCall = 0;
   this.retryBaseMs = opts.retryBaseMs == null ? 1500 : opts.retryBaseMs;
+  this.attempts = opts.attempts || 5;
 }
 
 WebClient.prototype.request = async function (method, path, body) {
-  for (var attempt = 0; attempt < 5; attempt++) {
+  var lastErr = '';
+  for (var attempt = 0; attempt < this.attempts; attempt++) {
     var wait = this.minGapMs - (Date.now() - this.lastCall);
     if (wait > 0) await sleep(wait);
     this.lastCall = Date.now();
@@ -134,9 +142,9 @@ WebClient.prototype.request = async function (method, path, body) {
     if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
     var r;
     try { r = await fetch(this.base + path, opt); }
-    catch (e) { await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }   // rớt mạng → thử lại
+    catch (e) { lastErr = e.message; await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }   // rớt mạng → thử lại
     var text = await r.text();
-    if (r.status === 429 || r.status >= 500) { await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }
+    if (r.status === 429 || r.status >= 500) { lastErr = 'HTTP ' + r.status; await sleep(this.retryBaseMs * Math.pow(2, attempt)); continue; }
     if (r.status === 401 || r.status === 403 || r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) {
       throw FatalError('[web] API key Sapo Web sai hoặc thiếu quyền (HTTP ' + r.status + ')', 'permission');
     }
@@ -145,7 +153,8 @@ WebClient.prototype.request = async function (method, path, body) {
     try { return JSON.parse(text); }
     catch (e) { throw new Error('[web] ' + path + ' không trả về JSON: ' + text.slice(0, 200)); }
   }
-  throw new Error('[web] ' + method.toUpperCase() + ' ' + path + ' thất bại sau 5 lần thử');
+  throw FatalError('[web] Không kết nối được Sapo Web sau ' + this.attempts + ' lần thử (' + lastErr + '). ' +
+                   'Kiểm tra mạng Internet và địa chỉ Sapo Web.', 'network');
 };
 
 // ---------- Dùng chung cho 2 cổng ----------
