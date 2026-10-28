@@ -200,9 +200,14 @@ function loadSystem(opts) {
     ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger() { return { timeBased: () => ({ everyMinutes: () => ({ create() {} }) }) }; } }
   };
   vm.createContext(ctx);
-  const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Core.js', 'Api.js', 'Store.js', 'Main.js']) {
-    vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+  if (opts && opts.bundle) {
+    const f = path.join(__dirname, '..', 'dist', 'Code.gs');
+    vm.runInContext(fs.readFileSync(f, 'utf8'), ctx, { filename: 'Code.gs' });
+  } else {
+    const dir = path.join(__dirname, '..', 'apps-script');
+    for (const f of ['Core.js', 'Api.js', 'Store.js', 'Main.js']) {
+      vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+    }
   }
   const sys = {
     web, omni, sheets, props, mails, ctx,

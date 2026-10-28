@@ -39,16 +39,12 @@ Khóa ghép theo thứ tự: **SĐT → email**. SĐT được chuẩn hóa khi 
    - Access token → `OMNI_AUTH_MODE = token`
 3. Một tài khoản Google (nên dùng tài khoản công ty).
 
-## Cài đặt (khoảng 15 phút)
+## Cài đặt
 
-1. Tạo **Google Sheet** mới, đặt tên `Đồng bộ Sapo`.
-2. Menu **Tiện ích mở rộng → Apps Script**.
-3. Tạo 4 tệp script, đặt tên đúng như sau, rồi dán nội dung tương ứng trong thư mục `apps-script/`:
-   `Core`, `Api`, `Store`, `Main` (Apps Script tự thêm đuôi `.gs`).
-4. Bánh răng **Cài đặt dự án** → tích **"Hiển thị tệp kê khai appsscript.json"** → mở `appsscript.json` và dán nội dung tệp cùng tên.
-5. Vẫn ở **Cài đặt dự án** → **Thuộc tính tập lệnh** → thêm các khóa ở bảng dưới.
-6. Quay lại Sheet, tải lại trang → xuất hiện menu **Đồng bộ Sapo**.
-7. **Đồng bộ Sapo → 1. Kiểm tra kết nối** → cấp quyền lần đầu → phải thấy ✅ cho cả Web và Omni.
+👉 **Làm theo [HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md)** (khoảng 20 phút, mô tả từng nút cần bấm).
+
+Tóm tắt: tạo Google Sheet → Tiện ích mở rộng → Apps Script → dán **1 tệp** [`dist/Code.gs`](dist/Code.gs) và
+[`dist/appsscript.json`](dist/appsscript.json) → nhập thuộc tính tập lệnh → menu **Đồng bộ Sapo → 1. Kiểm tra kết nối**.
 
 ### Thuộc tính tập lệnh (cấu hình)
 
@@ -126,7 +122,8 @@ Sapo tự sinh một "bản dội" bên Omni mỗi khi có khách mới trên We
 ## Dành cho người phát triển
 
 ```bash
-npm test
+npm test        # kiểm tra dist/Code.gs đã cập nhật + chạy toàn bộ kiểm thử
+npm run build   # sau khi sửa apps-script/*.js: gộp lại thành dist/Code.gs
 ```
 
 Bộ kiểm thử (`test/`) giả lập Apps Script, 2 máy chủ Sapo và bộ kết nối Sapo (kể cả hành vi sinh bản dội),
@@ -143,3 +140,5 @@ và **không ghi lặp khi dữ liệu đã ổn định**.
 | `apps-script/Main.js` | Cấu hình, chạy đồng bộ, menu, hẹn giờ, cảnh báo email |
 | `test/sync.test.js` | 18 kịch bản nghiệp vụ |
 | `test/scale.test.js` | Mô phỏng 2.500 khách Omni + 400 khách Web |
+| `test/deploy.test.js` | Tệp gộp `dist/Code.gs`, kiểm tra kết nối khi mới có key Web |
+| `dist/Code.gs` | **Tệp để dán vào Google Apps Script** (tự sinh, không sửa tay) |

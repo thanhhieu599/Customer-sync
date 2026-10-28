@@ -17,7 +17,8 @@ function onOpen() {
 }
 
 // ---------- Cấu hình ----------
-function getConfig_() {
+function getConfig_(opts) {
+  opts = opts || {};
   var p = PropertiesService.getScriptProperties().getProperties();
   function bool(v, d) { return v == null || v === '' ? d : String(v).toLowerCase() === 'true'; }
   function num(v, d) { var n = Number(v); return v == null || v === '' || isNaN(n) ? d : n; }
@@ -41,7 +42,8 @@ function getConfig_() {
   if (!cfg.webKey) missing.push('WEB_API_KEY');
   if (!cfg.webSecret) missing.push('WEB_API_SECRET');
   if (!cfg.omniBase) missing.push('OMNI_BASE_URL');
-  if (cfg.omniAuthMode === 'token' ? !cfg.omniToken : !(cfg.omniKey && cfg.omniSecret)) {
+  cfg.omniReady = cfg.omniAuthMode === 'token' ? !!cfg.omniToken : !!(cfg.omniKey && cfg.omniSecret);
+  if (!cfg.omniReady && !opts.allowMissingOmni) {
     missing.push(cfg.omniAuthMode === 'token' ? 'OMNI_ACCESS_TOKEN' : 'OMNI_API_KEY / OMNI_API_SECRET');
   }
   if (missing.length) throw new Error('Thiếu cấu hình: ' + missing.join(', '));
@@ -58,10 +60,14 @@ function clients_(cfg) {
 
 // ---------- Kiểm tra kết nối ----------
 function selfTest() {
-  var cfg = getConfig_();
+  var cfg = getConfig_({ allowMissingOmni: true });
   var c = clients_(cfg);
   var out = [];
   [['Sapo Web', c.web, SyncCore.fromWeb], ['Sapo Omni', c.omni, SyncCore.fromOmni]].forEach(function (x) {
+    if (x[0] === 'Sapo Omni' && !cfg.omniReady) {
+      out.push('⏳ Sapo Omni: chưa có API key (thêm OMNI_API_KEY / OMNI_API_SECRET khi Sapo cấp)');
+      return;
+    }
     try {
       var j = x[1].request('get', 'customers.json?limit=1&page=1');
       var list = j.customers || [];
