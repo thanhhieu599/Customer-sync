@@ -1,0 +1,109 @@
+# Hướng dẫn cài tiện ích Chrome "D&T Sapo Sync" (khoảng 30 phút)
+
+Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không cần API key Omni**: nó dùng tab Sapo Omni đang
+đăng nhập trên Chrome, giống hệt cách nhân viên thao tác. Phía Sapo Web dùng API key như bình thường.
+
+> Đã kiểm chứng trên cửa hàng thật: đọc khách / đơn hàng và **sửa khách** qua phiên đăng nhập đều được chấp nhận
+> (Omni yêu cầu gửi kèm mã KH và tên khi sửa – tiện ích đã làm đúng như vậy).
+
+---
+
+## 1. Chuẩn bị (làm 1 lần)
+
+| Việc | Chi tiết |
+|---|---|
+| **Máy chạy** | 1 máy văn phòng bật liên tục (PC sẵn có hoặc mini PC). Windows: *Cài đặt → Hệ thống → Nguồn* → **Ngủ: Không bao giờ** |
+| **Chrome tự mở khi bật máy** | Nhấn `Win + R` → gõ `shell:startup` → kéo biểu tượng Chrome vào thư mục vừa mở |
+| **Hồ sơ Chrome riêng** | Bấm ảnh đại diện góc phải Chrome → **Thêm** → đặt tên `Đồng bộ Sapo`. Chỉ dùng hồ sơ này cho việc đồng bộ |
+| **Tài khoản Omni riêng** | Trong Sapo Omni: *Cấu hình → Nhân viên* → tạo nhân viên **"Đồng bộ tự động"**, chỉ cấp quyền **Khách hàng: xem, thêm, sửa**. Mọi thay đổi do tiện ích thực hiện sẽ mang tên tài khoản này để dễ truy vết |
+| **API key Sapo Web** | `https://xxxxx.mysapo.net/admin/apps/private` → Tạo ứng dụng riêng → chỉ quyền **Khách hàng: Đọc và ghi** → ghi lại API Key + Mật khẩu |
+
+## 2. Cài tiện ích
+
+1. Mở https://github.com/thanhhieu599/customer-sync → nút xanh **Code → Download ZIP** → giải nén vào ổ đĩa
+   (ví dụ `C:\DT-Sapo-Sync\`). **Không xóa thư mục này sau khi cài** – Chrome chạy tiện ích từ đây.
+2. Trong hồ sơ Chrome `Đồng bộ Sapo`, gõ vào thanh địa chỉ: `chrome://extensions`
+3. Bật **Chế độ dành cho nhà phát triển** (góc trên bên phải).
+4. Bấm **Tải tiện ích đã giải nén** → chọn thư mục **`chrome-extension`** bên trong thư mục vừa giải nén.
+5. Bấm biểu tượng **mảnh ghép 🧩** trên thanh Chrome → **ghim 📌** "D&T Sapo Sync" để biểu tượng luôn hiện.
+
+> Chrome có thể hiện thông báo *"Tắt các tiện ích ở chế độ nhà phát triển"* khi khởi động: bấm **Giữ lại / Đóng**, không tắt.
+
+## 3. Đăng nhập Omni & cấu hình
+
+1. Mở tab `https://trangthietbivn.mysapogo.com` → đăng nhập bằng tài khoản **"Đồng bộ tự động"** →
+   chuột phải vào tab → **Ghim**. Tab này cần luôn mở.
+2. Bấm biểu tượng tiện ích → **Cài đặt & nhật ký**. Điền:
+
+| Ô | Giá trị |
+|---|---|
+| Địa chỉ Sapo Web | `https://xxxxx.mysapo.net` |
+| API Key / Mật khẩu | lấy ở bước chuẩn bị |
+| Địa chỉ Sapo Omni | `https://trangthietbivn.mysapogo.com` (đã điền sẵn) |
+| Chế độ | **CHẠY THỬ** |
+| Số khách tạo mới tối đa mỗi lượt | `10` |
+| Chu kỳ chạy tự động | `10` phút |
+
+3. Bấm **Lưu cài đặt** → **Kiểm tra kết nối**. Kết quả đúng:
+   ```
+   ✅ Sapo Web: kết nối OK. Tổng khách: ...
+   ✅ Sapo Omni (qua tab đăng nhập): kết nối OK. Tổng khách: ...
+   ```
+
+## 4. Bật dần theo 5 nấc
+
+| Nấc | Làm gì | Kiểm tra |
+|---|---|---|
+| **1. Chạy thử** | Chế độ CHẠY THỬ → **Chạy đồng bộ 1 lần** | Thẻ **Nhật ký** → lọc *Chỉ tóm tắt*: số khách *sẽ* tạo / ghép có hợp lý không? Các dòng `[THỬ]` là việc sẽ làm |
+| **2. Phạm vi** | Nếu chỉ đẩy khách B2B lên Web: điền `579639` (nhóm Bán lẻ) vào ô *Mã nhóm khách KHÔNG đẩy lên Web* – **sau khi** đã chuyển khách công ty ra khỏi nhóm Bán lẻ | Chạy thử lại, số khách sẽ tạo giảm |
+| **3. Chạy thật 1 khách** | Chế độ **CHẠY THẬT**, tạo tối đa **1** → Chạy 1 lần | Khách vừa tạo trên Web đúng tên/SĐT/email/địa chỉ? Sửa SĐT khách đó trên Web → chạy lại → Omni cập nhật? Nhật ký có dòng *"không lưu đúng dữ liệu"* không? |
+| **4. Mở rộng** | Tạo tối đa **100** → chạy vài lần | Dòng tóm tắt: `tạo trên Web: 0`, `để lượt sau: 0` |
+| **5. Tự động** | Popup → **Bật tự động** | Biểu tượng không có dấu = tốt. Theo dõi nhật ký 2–3 ngày đầu |
+
+## 5. Đọc biểu tượng tiện ích
+
+| Biểu tượng | Nghĩa | Cần làm |
+|---|---|---|
+| (không có chữ) | Hoạt động tốt | Không |
+| `…` xanh | Đang chạy | Không |
+| `!` cam | Có cảnh báo (vd. Sapo không lưu đúng 1 trường) | Xem thẻ Nhật ký, lọc WARN |
+| `X` đỏ | Có lỗi hoặc đã dừng an toàn | Xem dòng `DỪNG` / `ERROR` trong Nhật ký |
+| `🔑` đỏ | **Hết phiên đăng nhập Omni** | Mở tab Omni → đăng nhập lại → popup bấm **Chạy ngay** |
+| `OFF` xám | Đang tắt tự động | Popup → Bật tự động |
+
+Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo trên màn hình** (tối đa 1 lần/giờ cho mỗi loại).
+
+## 6. (Tùy chọn) Nhận cảnh báo qua email
+
+1. Vào https://script.google.com → **Dự án mới** → dán đoạn dưới (sửa email) → **Ctrl + S**:
+   ```javascript
+   function doPost(e) {
+     var d = JSON.parse(e.postData.contents);
+     MailApp.sendEmail('admin@trangthietbi.vn', '[D&T Sapo Sync] ' + d.subject, d.body);
+     return ContentService.createTextOutput('ok');
+   }
+   ```
+2. **Triển khai → Triển khai mới → Loại: Ứng dụng web** → *Thực thi với tư cách*: **Tôi** → *Ai có quyền truy cập*: **Bất kỳ ai** → **Triển khai** → cấp quyền.
+3. Chép **URL ứng dụng web** (dạng `https://script.google.com/macros/s/.../exec`) → dán vào ô **Email cảnh báo** trong cài đặt tiện ích → Lưu.
+
+## 7. Vận hành & sự cố
+
+| Tình huống | Hệ thống xử lý | Anh/chị cần làm |
+|---|---|---|
+| Mất điện / khởi động lại máy | Chrome tự mở, tiện ích tự chạy lại; lượt sau tự bù toàn bộ thay đổi | Kiểm tra tab Omni còn đăng nhập |
+| Lỡ đóng tab Omni | Tiện ích tự mở lại tab ghim | Không |
+| Hết phiên đăng nhập Omni | Dừng an toàn, biểu tượng 🔑, thông báo + email | Đăng nhập lại trên tab Omni |
+| Sapo thay đổi hệ thống, dữ liệu trả về bất thường | Dừng an toàn, không ghi gì, báo lỗi | Gửi dòng `DỪNG` trong nhật ký cho người phụ trách kỹ thuật |
+| Muốn tạm dừng | — | Popup → **Tắt tự động** |
+| Xuất báo cáo | — | Thẻ Nhật ký / Bảng ghép → **Xuất Excel (CSV)** |
+
+**Cập nhật phiên bản mới:** tải ZIP mới → giải nén **đè** vào đúng thư mục cũ → `chrome://extensions` → bấm **↻ Tải lại** ở tiện ích.
+Cài đặt, bảng ghép và nhật ký được giữ nguyên.
+
+## 8. Lưu ý
+
+- Đây là **giải pháp chuyển tiếp** dùng API nội bộ của Omni (giống giao diện Omni dùng). Khi Sapo cấp API chính thức
+  (Enterprise API / API key Omni), chuyển sang bản Google Apps Script ([HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md)) –
+  logic đồng bộ là một, không phải làm lại.
+- Máy chạy tiện ích đang giữ phiên đăng nhập Omni: đặt mật khẩu Windows, không cài phần mềm lạ, không dùng hồ sơ Chrome này để duyệt web.
+- Không chia sẻ API key Sapo Web qua chat/email.

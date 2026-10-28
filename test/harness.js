@@ -68,6 +68,11 @@ function makeServer(kind) {
         const rec = db.get(Number(m[1]));
         if (!rec) return [404, '{}'];
         const c = JSON.parse(payload).customer;
+        // Giống Omni thật: sửa khách bắt buộc kèm mã KH và tên (đã kiểm chứng trên cửa hàng D&T)
+        if (kind === 'omni' && (!c.code || !c.name)) {
+          return [422, JSON.stringify({ data_error: { status: 422, errors: Object.assign({},
+            c.code ? {} : { code: 'must not be blank' }, c.name ? {} : { name: 'must not be blank' }) } })];
+        }
         const addrs = c.addresses; delete c.addresses; delete c.id;
         Object.assign(rec, c);
         if (addrs) {
@@ -205,7 +210,7 @@ function loadSystem(opts) {
     vm.runInContext(fs.readFileSync(f, 'utf8'), ctx, { filename: 'Code.gs' });
   } else {
     const dir = path.join(__dirname, '..', 'apps-script');
-    for (const f of ['Core.js', 'Api.js', 'Store.js', 'Main.js']) {
+    for (const f of ['Core.js', 'Engine.js', 'Api.js', 'Store.js', 'Main.js']) {
       vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
     }
   }
@@ -227,4 +232,12 @@ function loadSystem(opts) {
   return sys;
 }
 
-module.exports = { loadSystem, tick, nowIso };
+function FakeDate() {
+  return class extends Date {
+    constructor(...a) { if (a.length) super(...a); else super(clock); }
+    static now() { return clock; }
+    static parse(s) { return Date.parse(s); }
+  };
+}
+
+module.exports = { loadSystem, tick, nowIso, makeServer, makeConnector, makeSheet, FakeDate };

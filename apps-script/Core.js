@@ -351,13 +351,18 @@ var SyncCore = (function () {
     return { customer: c };
   }
 
-  /** Bản chuẩn (nguồn) → payload Sapo Omni. existing = bản Omni hiện có (khi cập nhật) */
+  /**
+   * Bản chuẩn (nguồn) → payload Sapo Omni. existing = bản Omni hiện có (khi cập nhật).
+   * Omni bắt buộc gửi kèm mã KH (code) và tên (name) khi sửa, nếu thiếu sẽ báo 422
+   * "code/name must not be blank" (đã kiểm chứng trên cửa hàng thật).
+   */
   function toOmniPayload(src, existing) {
     var c = {
-      name: src.name,
+      name: src.name || (existing && existing.name) || src.phone || src.email,
       phone_number: src.phone || null,
       email: src.email || null
     };
+    if (existing && existing.code) c.code = existing.code;
     if (src.address || src.phone) {
       var a = { address1: src.address || '', phone_number: src.phone || '', country: 'Việt Nam' };
       if (existing && existing.addressId) a.id = Number(existing.addressId);

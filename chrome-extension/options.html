@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title>D&T Sapo Sync – Cài đặt</title><link rel="stylesheet" href="ui.css">
+<style>body{max-width:1100px;margin:0 auto;padding:20px 16px}</style></head>
+<body>
+  <h1>D&amp;T Sapo Sync</h1>
+  <div class="muted">Đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web · <span id="status"></span></div>
+
+  <p class="row tabs" style="margin-top:16px">
+    <button data-tab="settings" class="on">Cài đặt</button>
+    <button data-tab="log">Nhật ký</button>
+    <button data-tab="map">Bảng ghép</button>
+  </p>
+
+  <section id="settings" class="box">
+    <div class="grid">
+      <div>
+        <h2>Sapo Web (API key)</h2>
+        <label for="webBase">Địa chỉ Sapo Web</label>
+        <input id="webBase" placeholder="https://xxxxx.mysapo.net">
+        <label for="webKey">API Key</label><input id="webKey" autocomplete="off">
+        <label for="webSecret">Mật khẩu (Secret)</label><input id="webSecret" type="password" autocomplete="off">
+        <div class="hint">Tạo tại …mysapo.net/admin/apps/private, chỉ cấp quyền Khách hàng: Đọc và ghi.</div>
+
+        <h2>Sapo Omni (phiên đăng nhập)</h2>
+        <label for="omniBase">Địa chỉ Sapo Omni</label>
+        <input id="omniBase" placeholder="https://trangthietbivn.mysapogo.com">
+        <div class="hint">Không cần API key. Tiện ích dùng tab Sapo Omni đang đăng nhập trên Chrome này
+          (nên đăng nhập bằng tài khoản nhân viên riêng "Đồng bộ tự động").</div>
+      </div>
+      <div>
+        <h2>Cách chạy</h2>
+        <label for="dryRun">Chế độ</label>
+        <select id="dryRun"><option value="true">CHẠY THỬ – chỉ ghi nhật ký, không sửa dữ liệu</option>
+                            <option value="false">CHẠY THẬT – ghi dữ liệu lên Sapo</option></select>
+        <label for="maxCreate">Số khách tạo mới tối đa mỗi lượt</label><input id="maxCreate" type="number" min="0" max="1000">
+        <label for="intervalMin">Chu kỳ chạy tự động</label>
+        <select id="intervalMin"><option>5</option><option>10</option><option>15</option><option>30</option><option>60</option></select>
+        <label for="skipOmniGroupIds">Mã nhóm khách Omni KHÔNG đẩy lên Web</label>
+        <input id="skipOmniGroupIds" placeholder="ví dụ 579639 (nhóm Bán lẻ)">
+        <div class="hint">Cách nhau dấu phẩy. Chuyển khách công ty ra khỏi nhóm Bán lẻ trước khi loại nhóm này.</div>
+        <label for="pendingTimeoutMin">Chờ Sapo tự tạo khách bên Omni (phút)</label><input id="pendingTimeoutMin" type="number" min="5">
+        <label for="deleteEcho">Xóa bản dội trên Omni</label>
+        <select id="deleteEcho"><option value="false">Không xóa (an toàn)</option><option value="true">Tự xóa bản dội 0 đơn – chỉ bật khi phép thử A đạt</option></select>
+        <label for="alertWebhook">Email cảnh báo (tùy chọn)</label>
+        <input id="alertWebhook" placeholder="URL Google Apps Script gửi email – xem hướng dẫn">
+      </div>
+    </div>
+    <p class="row" style="margin-top:16px">
+      <button id="save" class="primary">Lưu cài đặt</button>
+      <button id="test">Kiểm tra kết nối</button>
+      <button id="run">Chạy đồng bộ 1 lần</button>
+      <span id="saved" class="muted"></span>
+    </p>
+    <pre id="testOut" hidden></pre>
+  </section>
+
+  <section id="log" class="box" hidden>
+    <p class="row"><button id="logRefresh">Tải lại</button><button id="logCsv">Xuất Excel (CSV)</button>
+      <select id="logLevel" style="width:auto"><option value="">Tất cả</option><option>ERROR</option><option>WARN</option><option value="TÓM TẮT">Chỉ tóm tắt</option></select>
+      <span class="muted" id="logCount"></span></p>
+    <div style="max-height:70vh;overflow:auto"><table><thead><tr><th>Thời gian</th><th>Mức</th><th>Việc</th><th>Omni</th><th>Web</th><th>Khách</th><th>Chi tiết</th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </section>
+
+  <section id="map" class="box" hidden>
+    <p class="row"><button id="mapRefresh">Tải lại</button><button id="mapCsv">Xuất Excel (CSV)</button>
+      <input id="mapSearch" placeholder="Tìm tên / SĐT / ID" style="width:240px">
+      <span class="muted" id="mapCount"></span>
+      <button id="mapReset" class="danger" style="margin-left:auto">Xóa bảng ghép…</button></p>
+    <div style="max-height:70vh;overflow:auto"><table><thead><tr><th>Trạng thái</th><th>ID Omni</th><th>Mã KH</th><th>ID Web</th><th>Tên</th><th>SĐT</th><th>Ghi chú</th><th>Cập nhật</th></tr></thead><tbody id="mapBody"></tbody></table></div>
+  </section>
+  <script src="options.js"></script>
+</body></html>

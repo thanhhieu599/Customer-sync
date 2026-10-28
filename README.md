@@ -39,7 +39,19 @@ Khóa ghép theo thứ tự: **SĐT → email**. SĐT được chuẩn hóa khi 
    - Access token → `OMNI_AUTH_MODE = token`
 3. Một tài khoản Google (nên dùng tài khoản công ty).
 
-## Cài đặt
+## Hai cách triển khai (cùng một lõi đồng bộ)
+
+| | **Tiện ích Chrome** ⭐ dùng ngay | **Google Apps Script** |
+|---|---|---|
+| Kết nối Omni | Phiên đăng nhập trên tab Omni (không cần API key Omni) | API key Omni (đang chờ Sapo cấp) |
+| Nơi chạy | 1 máy văn phòng luôn bật Chrome | Máy chủ Google, 24/7 |
+| Hướng dẫn | [HUONG-DAN-TIEN-ICH-CHROME.md](HUONG-DAN-TIEN-ICH-CHROME.md) | [HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md) |
+| Thư mục | `chrome-extension/` | `dist/Code.gs` (dán vào Apps Script) |
+
+Logic ghép cặp, tạo, cập nhật, chống bản dội, dừng an toàn (`apps-script/Core.js`, `apps-script/Engine.js`) **dùng chung**
+cho cả 2 bản. Khi có API key Omni, chuyển từ tiện ích Chrome sang Apps Script không phải làm lại gì.
+
+## Cài đặt bản Google Apps Script
 
 👉 **Làm theo [HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md)** (khoảng 20 phút, mô tả từng nút cần bấm).
 
@@ -134,11 +146,12 @@ và **không ghi lặp khi dữ liệu đã ổn định**.
 
 | Tệp | Vai trò |
 |---|---|
-| `apps-script/Core.js` | Logic thuần: chuẩn hóa, ghép, lập kế hoạch hành động |
-| `apps-script/Api.js` | Gọi API Sapo Web / Omni, lật trang, thử lại |
-| `apps-script/Store.js` | Đọc/ghi sheet Map và Log |
-| `apps-script/Main.js` | Cấu hình, chạy đồng bộ, menu, hẹn giờ, cảnh báo email |
+| `apps-script/Core.js` | Lõi: chuẩn hóa, ghép, lập kế hoạch hành động (dùng chung) |
+| `apps-script/Engine.js` | Lõi: thực thi kế hoạch, kiểm tra an toàn, tóm tắt (dùng chung) |
+| `apps-script/Api.js`, `Store.js`, `Main.js` | Bản Apps Script: gọi API, lưu Google Sheet, menu, hẹn giờ |
+| `chrome-extension/` | Bản tiện ích Chrome: `clients.js` (cổng Omni qua tab + cổng Web), `background.js`, giao diện |
+| `dist/Code.gs`, `chrome-extension/lib/` | **Tự sinh** bằng `npm run build`, không sửa tay |
 | `test/sync.test.js` | 18 kịch bản nghiệp vụ |
 | `test/scale.test.js` | Mô phỏng 2.500 khách Omni + 400 khách Web |
 | `test/deploy.test.js` | Tệp gộp `dist/Code.gs`, kiểm tra kết nối khi mới có key Web |
-| `dist/Code.gs` | **Tệp để dán vào Google Apps Script** (tự sinh, không sửa tay) |
+| `test/extension.test.js` | 9 kịch bản tiện ích Chrome (giả lập Chrome, tab Omni, hết phiên đăng nhập, chạy chồng…) |
