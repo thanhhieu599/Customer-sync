@@ -12,7 +12,7 @@ importScripts('lib/core.js', 'lib/engine.js', 'clients.js');
 var ALARM = 'dt-sapo-sync';
 var LOG_MAX = 5000;
 var RUN_BUDGET_MS = 4 * 60 * 1000;
-var LOCK_STALE_MS = 15 * 60 * 1000;
+var LOCK_STALE_MS = 8 * 60 * 1000;     // lượt chạy lâu nhất ~5 phút; quá 8 phút coi như kẹt
 var INCR_OVERLAP_MS = 10 * 60 * 1000;   // đọc lùi 10 phút để không sót thay đổi
 var FULL_EVERY_MS = 20 * 3600 * 1000;    // quét toàn bộ tối đa 1 lần/ngày
 
@@ -21,7 +21,7 @@ var DEFAULT_CONFIG = {
   omniBase: 'https://trangthietbivn.mysapogo.com',
   dryRun: true, maxCreate: 10, pendingTimeoutMin: 30, deleteEcho: false,
   skipOmniGroupIds: '', intervalMin: 10, enabled: false, alertWebhook: '',
-  fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6
+  fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6, notifyChanges: true
 };
 
 // ---------- Cấu hình ----------
@@ -111,6 +111,22 @@ async function alertUser(kind, title, message) {
   }
 }
 
+/** Ghi nhận 1 lần kiểm tra (kể cả khi bỏ qua) để popup luôn biết hệ thống còn sống */
+async function noteCheck(message) {
+  var prev = (await chrome.storage.local.get('status')).status || {};
+  prev.lastCheckAt = new Date().toISOString();
+  prev.lastCheckMessage = message;
+  await chrome.storage.local.set({ status: prev });
+}
+
+async function notifyInfo(title, message) {
+  try {
+    await chrome.notifications.create('dt-sync-info-' + Date.now(), {
+      type: 'basic', iconUrl: 'icon128.png', title: title, message: String(message).slice(0, 300), priority: 0
+    });
+  } catch (e) { /* thông báo bị tắt trên máy */ }
+}
+
 // ---------- Khóa chống chạy chồng ----------
 // Cờ trong bộ nhớ đặt NGAY (không chờ) để 2 lệnh đến cùng lúc không cùng lọt qua;
 // khóa trong storage phòng trường hợp tiến trình nền bị Chrome khởi động lại giữa lượt.
@@ -190,7 +206,10 @@ function decideMode(trigger, cache, cfg, nowMs) {
 
 // ---------- Một lượt đồng bộ ----------
 async function runSync(trigger) {
-  if (!(await acquireLock())) return { skipped: true, message: 'Đang có lượt khác chạy' };
+  if (!(await acquireLock())) {
+    await noteCheck('Bỏ qua: đang có lượt khác chạy');
+    return { skipped: true, message: 'Đang có lượt khác chạy' };
+  }
   var log = new LogBuffer();
   var started = Date.now();
   var outcome, rows = null, ecfg = null, executing = false, cache = null, c = null;
@@ -199,13 +218,17 @@ async function runSync(trigger) {
     validateConfig(cfg);
     var paused = (await chrome.storage.local.get('pausedUntil')).pausedUntil || 0;
     if (trigger === 'alarm' && paused > Date.now()) {
-      return { skipped: true, message: 'Đang tạm nghỉ đến ' + new Date(paused).toLocaleTimeString('vi-VN') };
+      var pm = 'Đang tạm nghỉ đến ' + new Date(paused).toLocaleTimeString('vi-VN');
+      await noteCheck('Bỏ qua: ' + pm);
+      return { skipped: true, message: pm };
     }
     cache = await loadCache();
     var mode = decideMode(trigger, cache, cfg, Date.now());
     if (mode === 'skip') {
       var next = new Date((Date.parse(cache.lastFullAt) || 0) + Number(cfg.fallbackFullHours) * 3600 * 1000);
-      return { skipped: true, message: 'Sapo không hỗ trợ đọc theo thay đổi; lượt quét toàn bộ kế tiếp lúc ' + next.toLocaleString('vi-VN') };
+      var sm = 'Sapo không hỗ trợ đọc theo thay đổi; lượt quét toàn bộ kế tiếp lúc ' + next.toLocaleString('vi-VN');
+      await noteCheck('Bỏ qua: ' + sm);
+      return { skipped: true, message: sm };
     }
     await setStatus('running', mode === 'full' ? 'Đang quét toàn bộ (đối soát)...' : 'Đang đồng bộ thay đổi...');
     c = makeClients(cfg);
@@ -261,6 +284,13 @@ async function runSync(trigger) {
     await chrome.storage.local.remove('pausedUntil');
     if (done.errors) await alertUser('errors', 'Đồng bộ Sapo có ' + done.errors + ' lỗi', summary);
     else await chrome.storage.local.remove('lastAlert');
+    var st = result.stats;
+    var changed = st.createdWeb + st.createdOmni + st.o2w + st.w2o + st.linked;
+    if (!ecfg.dryRun && changed > 0 && cfg.notifyChanges !== false && !done.errors) {
+      await notifyInfo('Đã đồng bộ ' + changed + ' khách hàng',
+        'Tạo trên Web: ' + st.createdWeb + ' · Tạo trên Omni: ' + st.createdOmni + ' · Omni→Web: ' + st.o2w +
+        ' · Web→Omni: ' + st.w2o + ' · Ghép mới: ' + st.linked);
+    }
     outcome = { ok: true, mode: mode, summary: summary, stats: result.stats, done: done, omniCalls: c.omni.calls };
   } catch (e) {
     var kind = e && e.kind;
@@ -331,6 +361,13 @@ async function applySchedule() {
     await setStatus('off', 'Đang tắt tự động');
   }
 }
+
+/** Tiến trình nền vừa khởi động: đang BẬT tự động mà mất lịch chạy → tạo lại */
+async function ensureSchedule() {
+  var cfg = await getConfig();
+  if (cfg.enabled && !(await chrome.alarms.get(ALARM))) await applySchedule();
+}
+ensureSchedule();
 
 chrome.alarms.onAlarm.addListener(function (a) { if (a.name === ALARM) runSync('alarm'); });
 chrome.runtime.onInstalled.addListener(function () { applySchedule(); });

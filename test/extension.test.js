@@ -165,3 +165,59 @@ test('tiện ích: hết phiên kiểu Sapo trả thẳng trang HTML (không chu
   assert.ok(r.session, 'nhận ra hết phiên');
   assert.strictEqual(ext.status().state, 'session');
 });
+
+test('tiện ích: Chrome cho tab Omni "ngủ đông" → tự tải lại tab rồi chạy; đặt cờ cấm ngủ đông', async () => {
+  const ext = loadExtension();
+  const t = ext.openOmniTab(); seed(ext);
+  await ext.configure({});
+  t.discarded = true; t.status = 'unloaded';
+  const r = await ext.run();
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(ext.state.reloads, 1, 'đã tải lại tab');
+  assert.strictEqual(t.autoDiscardable, false, 'cấm Chrome cho tab Omni ngủ đông');
+  assert.strictEqual(pairs(ext).length, 3);
+});
+
+test('tiện ích: tab Omni bị treo không trả lời → lượt chạy KHÔNG treo theo, dừng và tạm nghỉ', { timeout: 20000 }, async () => {
+  const ext = loadExtension();
+  ext.openOmniTab(); seed(ext);
+  await ext.configure({});
+  await ext.run();
+  ext.state.tabFrozen = true;
+  const r = await ext.run();
+  assert.ok(r.overload, 'kết thúc lượt, không chờ mãi');
+  assert.strictEqual(ext.status().state, 'paused');
+  assert.ok(!ext.state.store.lock, 'đã nhả khóa');
+});
+
+test('tiện ích: lượt bị bỏ qua (đang tạm nghỉ) vẫn ghi "kiểm tra gần nhất" để popup biết hệ thống còn chạy', async () => {
+  const ext = loadExtension();
+  ext.openOmniTab(); seed(ext);
+  await ext.configure({});
+  await ext.send({ cmd: 'setEnabled', enabled: true });
+  ext.state.store.pausedUntil = Date.now() + 3600 * 1000;
+  await ext.fireAlarm();
+  assert.ok(ext.status().lastCheckAt, 'có thời điểm kiểm tra');
+  assert.match(ext.status().lastCheckMessage, /tạm nghỉ/);
+});
+
+test('tiện ích: đồng bộ có thay đổi → hiện thông báo; không có gì mới → không làm phiền', async () => {
+  const ext = loadExtension();
+  ext.openOmniTab(); seed(ext);
+  await ext.configure({});
+  await ext.run();
+  assert.ok(ext.state.notes.some(n => /Đã đồng bộ \d+ khách hàng/.test(n.title)));
+  ext.connector.run(); await ext.run();
+  const before = ext.state.notes.length;
+  await ext.run();
+  assert.strictEqual(ext.state.notes.length, before, 'không có thay đổi thì không thông báo');
+});
+
+test('tiện ích: đang BẬT tự động mà mất lịch chạy → tiến trình nền khởi động lại tự tạo lịch', async () => {
+  const ext = loadExtension();
+  await ext.configure({});
+  await ext.send({ cmd: 'setEnabled', enabled: true });
+  delete ext.state.alarms['dt-sapo-sync'];
+  await ext.ctx.ensureSchedule();
+  assert.ok(ext.state.alarms['dt-sapo-sync'], 'đã tạo lại lịch');
+});

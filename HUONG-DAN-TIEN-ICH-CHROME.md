@@ -80,7 +80,23 @@ và chuyển sang **quét toàn bộ mỗi 6 giờ** thay vì mỗi 10 phút.
 | **4. Mở rộng** | Tạo tối đa **100** → chạy vài lần | Dòng tóm tắt: `tạo trên Web: 0`, `để lượt sau: 0` |
 | **5. Tự động** | Popup → **Bật tự động** | Biểu tượng không có dấu = tốt. Theo dõi nhật ký 2–3 ngày đầu |
 
-## 5. Đọc biểu tượng tiện ích
+## 5. Đọc popup (bấm biểu tượng tiện ích)
+
+| Dòng | Ý nghĩa |
+|---|---|
+| Khung **vàng** "Tự động đang TẮT" | Hệ thống **không tự chạy**. Bấm **Bật tự động** |
+| Khung **xanh** "Đang ở CHẠY THỬ" | Chỉ ghi nhật ký, **chưa sửa dữ liệu Sapo**. Đổi sang CHẠY THẬT trong Cài đặt khi đã kiểm tra xong |
+| **Lượt kế tiếp** | Giờ chạy lượt tiếp theo, còn bao nhiêu phút |
+| **Lượt chạy gần nhất** | Lần đồng bộ thật gần nhất và kết quả (khung xám bên dưới) |
+| **Kiểm tra gần nhất** | Lần gần nhất hệ thống "thức dậy" kiểm tra – kể cả khi bỏ qua (đang tạm nghỉ…) kèm lý do |
+
+Khi đồng bộ **có thay đổi** (tạo/cập nhật khách), Chrome hiện thông báo góc màn hình *"Đã đồng bộ N khách hàng"*.
+Không có gì mới thì không làm phiền.
+
+> **Không thấy thông báo nào trên Windows?** Vào *Cài đặt Windows → Hệ thống → Thông báo* → bật cho **Google Chrome**,
+> và tắt chế độ *Không làm phiền / Hỗ trợ tập trung*.
+
+## 6. Đọc biểu tượng tiện ích
 
 | Biểu tượng | Nghĩa | Cần làm |
 |---|---|---|
@@ -94,7 +110,7 @@ và chuyển sang **quét toàn bộ mỗi 6 giờ** thay vì mỗi 10 phút.
 
 Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo trên màn hình** (tối đa 1 lần/giờ cho mỗi loại).
 
-## 6. (Tùy chọn) Nhận cảnh báo qua email
+## 7. (Tùy chọn) Nhận cảnh báo qua email
 
 1. Vào https://script.google.com → **Dự án mới** → dán đoạn dưới (sửa email) → **Ctrl + S**:
    ```javascript
@@ -107,12 +123,15 @@ Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo tr�
 2. **Triển khai → Triển khai mới → Loại: Ứng dụng web** → *Thực thi với tư cách*: **Tôi** → *Ai có quyền truy cập*: **Bất kỳ ai** → **Triển khai** → cấp quyền.
 3. Chép **URL ứng dụng web** (dạng `https://script.google.com/macros/s/.../exec`) → dán vào ô **Email cảnh báo** trong cài đặt tiện ích → Lưu.
 
-## 7. Vận hành & sự cố
+## 8. Vận hành & sự cố
 
 | Tình huống | Hệ thống xử lý | Anh/chị cần làm |
 |---|---|---|
 | Mất điện / khởi động lại máy | Chrome tự mở, tiện ích tự chạy lại; lượt sau tự bù toàn bộ thay đổi | Kiểm tra tab Omni còn đăng nhập |
 | Lỡ đóng tab Omni | Tiện ích tự mở lại tab ghim | Không |
+| Chrome cho tab Omni "ngủ đông" (Tiết kiệm bộ nhớ) | Tự tải lại tab trước khi dùng, và đặt cờ cấm ngủ đông cho tab Omni | Không. Nếu muốn chắc hơn: *Chrome → Cài đặt → Hiệu suất → Tiết kiệm bộ nhớ* → thêm `trangthietbivn.mysapogo.com` vào danh sách **luôn hoạt động** |
+| Tab Omni bị treo không trả lời | Mỗi lệnh chờ tối đa 45 giây, sau đó dừng lượt và tạm nghỉ | Không |
+| **Sau 15–20 phút popup vẫn không đổi** | — | ① Popup có khung vàng "Tự động đang TẮT"? → bấm Bật tự động. ② Xem dòng "Kiểm tra gần nhất". ③ Vào `chrome://extensions` → ở tiện ích, nếu có nút đỏ **Lỗi** → bấm vào, chụp màn hình gửi người phụ trách kỹ thuật |
 | Hết phiên đăng nhập Omni | Dừng an toàn, biểu tượng 🔑, thông báo + email | Đăng nhập lại trên tab Omni |
 | Sapo Omni chậm / quá tải | Dừng ngay, tạm nghỉ 60 phút, biểu tượng ⏸ | Không cần làm gì |
 | Sapo thay đổi hệ thống, dữ liệu trả về bất thường | Dừng an toàn, không ghi gì, báo lỗi | Gửi dòng `DỪNG` trong nhật ký cho người phụ trách kỹ thuật |
@@ -122,7 +141,7 @@ Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo tr�
 **Cập nhật phiên bản mới:** tải ZIP mới → giải nén **đè** vào đúng thư mục cũ → `chrome://extensions` → bấm **↻ Tải lại** ở tiện ích.
 Cài đặt, bảng ghép và nhật ký được giữ nguyên.
 
-## 8. Lưu ý
+## 9. Lưu ý
 
 - Đây là **giải pháp chuyển tiếp** dùng API nội bộ của Omni (giống giao diện Omni dùng). Khi Sapo cấp API chính thức
   (Enterprise API / API key Omni), chuyển sang bản Google Apps Script ([HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md)) –

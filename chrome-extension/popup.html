@@ -1,11 +1,24 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><title>D&T Sapo Sync</title><link rel="stylesheet" href="ui.css">
-<style>body{width:360px;padding:14px}</style></head>
+<style>
+  body{width:380px;padding:14px}
+  .notice{border-radius:8px;padding:8px 10px;margin:8px 0;font-size:13px;font-weight:600}
+  .notice.off{background:#fef3c7;color:#92400e} .notice.dry{background:#dbeafe;color:#1e3a8a}
+  @media (prefers-color-scheme: dark){ .notice.off{background:#451a03;color:#fde68a} .notice.dry{background:#172554;color:#bfdbfe} }
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px;margin:6px 0}
+  .kv b{font-weight:600;color:var(--muted)}
+</style></head>
 <body>
   <h1>D&amp;T Sapo Sync</h1>
   <div class="muted">Đồng bộ khách hàng Sapo Omni ↔ Sapo Web</div>
   <p class="row"><span id="pill" class="pill st-off">…</span> <span id="msg"></span></p>
-  <div class="muted" id="last"></div>
+  <div id="offNotice" class="notice off" hidden>Tự động đang TẮT – hệ thống sẽ không tự chạy. Bấm “Bật tự động”.</div>
+  <div id="dryNotice" class="notice dry" hidden>Đang ở CHẠY THỬ – chỉ ghi nhật ký, chưa sửa dữ liệu Sapo.</div>
+  <div class="kv">
+    <b>Lượt kế tiếp</b><span id="next">—</span>
+    <b>Lượt chạy gần nhất</b><span id="last">—</span>
+    <b>Kiểm tra gần nhất</b><span id="check">—</span>
+  </div>
   <pre id="summary" hidden></pre>
   <div class="row" style="margin-top:10px">
     <button id="run" class="primary">Chạy ngay</button>

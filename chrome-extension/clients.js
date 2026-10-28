@@ -21,6 +21,16 @@ function FatalError(message, kind) {
 
 function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
 
+var TIMEOUT_ = { timeout: true };
+/** Chờ promise tối đa ms; quá hạn trả về TIMEOUT_ */
+function withTimeout_(promise, ms) {
+  var timer;
+  return Promise.race([
+    promise.then(function (v) { clearTimeout(timer); return v; }, function (e) { clearTimeout(timer); throw e; }),
+    new Promise(function (res) { timer = setTimeout(function () { res(TIMEOUT_); }, ms); })
+  ]);
+}
+
 /** Hàm chạy BÊN TRONG tab Omni (giống hệt lệnh anh đã chạy ở Console). Không dùng biến bên ngoài. */
 async function omniInPageFetch(method, url, body, timeoutMs) {
   var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -62,12 +72,21 @@ OmniTabClient.prototype.isLoginUrl_ = function (url) {
 /** Tìm (hoặc mở) tab Omni đã đăng nhập */
 OmniTabClient.prototype.ensureTab = async function () {
   var tabs = await chrome.tabs.query({ url: this.base + '/*' });
-  var tab = tabs.find(function (t) { return t.status === 'complete'; }) || tabs[0];
+  var tab = tabs.find(function (t) { return t.status === 'complete' && !t.discarded; }) || tabs[0];
   if (!tab) {
     tab = await chrome.tabs.create({ url: this.base + '/admin/dashboard', pinned: true, active: false });
     tab = await waitTabComplete_(tab.id, 60000);
+  } else if (tab.discarded || tab.status === 'unloaded') {
+    // Chrome đã cho tab "ngủ đông" (Tiết kiệm bộ nhớ) → tải lại rồi mới dùng
+    await chrome.tabs.reload(tab.id);
+    await sleep(500);
+    tab = await waitTabComplete_(tab.id, 60000);
   } else if (tab.status !== 'complete') {
     tab = await waitTabComplete_(tab.id, 60000);
+  }
+  // Không cho Chrome tự cho tab Omni ngủ đông nữa
+  if (tab.autoDiscardable !== false) {
+    try { await chrome.tabs.update(tab.id, { autoDiscardable: false }); } catch (e) { /* Chrome cũ không hỗ trợ */ }
   }
   if (this.isLoginUrl_(tab.url)) {
     throw FatalError('Phiên đăng nhập Sapo Omni đã hết hạn. Mở tab Sapo Omni và đăng nhập lại.', 'session');
@@ -125,11 +144,13 @@ OmniTabClient.prototype.request = async function (method, path, body) {
     this.calls++;
     var res;
     try {
-      var out = await chrome.scripting.executeScript({
+      // Chặn trường hợp tab bị treo (không trả lời) → không để lượt chạy chờ mãi
+      var out = await withTimeout_(chrome.scripting.executeScript({
         target: { tabId: this.tabId }, func: omniInPageFetch,
         args: [method.toUpperCase(), url, body || null, this.timeoutMs]
-      });
-      res = out && out[0] && out[0].result;
+      }), this.timeoutMs + 15000);
+      if (out === TIMEOUT_) { res = { status: 0, timeout: true, text: '' }; }
+      else res = out && out[0] && out[0].result;
     } catch (e) {
       // Tab bị đóng / đang tải lại / trang lỗi mạng → mở lại tab 1 lần
       if (attempt === 0) { this.tabId = null; await sleep(this.retryWaitMs); await this.ensureTab(); continue; }
