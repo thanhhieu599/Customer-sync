@@ -8,6 +8,24 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 
 ---
 
+## Cách tiện ích bảo vệ Sapo Omni (từ phiên bản 1.1)
+
+Sau sự cố Omni chậm/sập tạm thời khi chạy thử bản 1.0 (bản cũ đọc lại toàn bộ khách mỗi lượt, dồn ~3 lệnh/giây),
+tiện ích chạy theo nguyên tắc **"nhẹ hơn một nhân viên thao tác"**:
+
+| Cơ chế | Bản 1.0 (gây sự cố) | Bản 1.1 |
+|---|---|---|
+| Mỗi lượt định kỳ | Đọc lại **toàn bộ** ~2.500 khách (10–50 lệnh nặng) | Chỉ hỏi **"khách nào vừa thay đổi"** – thường **1 lệnh** |
+| Quét toàn bộ để đối soát | Mỗi 10 phút | **1 lần/ngày vào giờ đêm** (mặc định 2 giờ sáng), trang nhỏ 50 khách |
+| Giãn cách giữa 2 lệnh Omni | 0,3 giây | **≥ 1,5 giây** |
+| Thời gian chờ tối đa mỗi lệnh | Không giới hạn | **30 giây** |
+| Omni chậm / lỗi (429, 5xx, treo) | Thử lại tới 5 lần mỗi lệnh | **Dừng ngay sau 2 lần**, **tạm nghỉ 60 phút**, báo ⏸ + thông báo |
+| Số lệnh ghi Omni mỗi lượt | Không giới hạn | **Tối đa 60**, phần còn lại để lượt sau |
+| Xóa bản dội (nếu bật) | Dựa vào số liệu lưu sẵn | **Hỏi lại Sapo có đơn hàng không ngay trước khi xóa** |
+
+Nếu Sapo không hỗ trợ "chỉ đọc khách thay đổi", tiện ích tự nhận ra ngay từ trang đầu (không đọc hết),
+và chuyển sang **quét toàn bộ mỗi 6 giờ** thay vì mỗi 10 phút.
+
 ## 1. Chuẩn bị (làm 1 lần)
 
 | Việc | Chi tiết |
@@ -43,6 +61,7 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 | Chế độ | **CHẠY THỬ** |
 | Số khách tạo mới tối đa mỗi lượt | `10` |
 | Chu kỳ chạy tự động | `10` phút |
+| Giờ quét toàn bộ | `2 giờ` (giờ đêm, ít người dùng Sapo) |
 
 3. Bấm **Lưu cài đặt** → **Kiểm tra kết nối**. Kết quả đúng:
    ```
@@ -54,6 +73,7 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 
 | Nấc | Làm gì | Kiểm tra |
 |---|---|---|
+| **0. Quét lần đầu** | **Ngoài giờ làm việc** (trưa hoặc sau 18 giờ): Chế độ CHẠY THỬ → **Quét toàn bộ ngay** | Lần đầu tiện ích phải đọc toàn bộ khách 2 bên (khoảng 1–2 phút, chậm rãi). Từ lượt sau chỉ đọc thay đổi |
 | **1. Chạy thử** | Chế độ CHẠY THỬ → **Chạy đồng bộ 1 lần** | Thẻ **Nhật ký** → lọc *Chỉ tóm tắt*: số khách *sẽ* tạo / ghép có hợp lý không? Các dòng `[THỬ]` là việc sẽ làm |
 | **2. Phạm vi** | Nếu chỉ đẩy khách B2B lên Web: điền `579639` (nhóm Bán lẻ) vào ô *Mã nhóm khách KHÔNG đẩy lên Web* – **sau khi** đã chuyển khách công ty ra khỏi nhóm Bán lẻ | Chạy thử lại, số khách sẽ tạo giảm |
 | **3. Chạy thật 1 khách** | Chế độ **CHẠY THẬT**, tạo tối đa **1** → Chạy 1 lần | Khách vừa tạo trên Web đúng tên/SĐT/email/địa chỉ? Sửa SĐT khách đó trên Web → chạy lại → Omni cập nhật? Nhật ký có dòng *"không lưu đúng dữ liệu"* không? |
@@ -69,6 +89,7 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 | `!` cam | Có cảnh báo (vd. Sapo không lưu đúng 1 trường) | Xem thẻ Nhật ký, lọc WARN |
 | `X` đỏ | Có lỗi hoặc đã dừng an toàn | Xem dòng `DỪNG` / `ERROR` trong Nhật ký |
 | `🔑` đỏ | **Hết phiên đăng nhập Omni** | Mở tab Omni → đăng nhập lại → popup bấm **Chạy ngay** |
+| `⏸` cam | **Omni đang chậm/lỗi – tiện ích tự tạm nghỉ 60 phút** | Không cần làm gì, hết giờ nghỉ tự chạy lại. Nếu chắc Omni đã ổn: popup → **Bỏ tạm nghỉ** |
 | `OFF` xám | Đang tắt tự động | Popup → Bật tự động |
 
 Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo trên màn hình** (tối đa 1 lần/giờ cho mỗi loại).
@@ -93,6 +114,7 @@ Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo tr�
 | Mất điện / khởi động lại máy | Chrome tự mở, tiện ích tự chạy lại; lượt sau tự bù toàn bộ thay đổi | Kiểm tra tab Omni còn đăng nhập |
 | Lỡ đóng tab Omni | Tiện ích tự mở lại tab ghim | Không |
 | Hết phiên đăng nhập Omni | Dừng an toàn, biểu tượng 🔑, thông báo + email | Đăng nhập lại trên tab Omni |
+| Sapo Omni chậm / quá tải | Dừng ngay, tạm nghỉ 60 phút, biểu tượng ⏸ | Không cần làm gì |
 | Sapo thay đổi hệ thống, dữ liệu trả về bất thường | Dừng an toàn, không ghi gì, báo lỗi | Gửi dòng `DỪNG` trong nhật ký cho người phụ trách kỹ thuật |
 | Muốn tạm dừng | — | Popup → **Tắt tự động** |
 | Xuất báo cáo | — | Thẻ Nhật ký / Bảng ghép → **Xuất Excel (CSV)** |

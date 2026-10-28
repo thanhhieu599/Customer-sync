@@ -1,5 +1,9 @@
-var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'dryRun', 'maxCreate', 'intervalMin',
+var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'dryRun', 'maxCreate', 'intervalMin', 'fullScanHour',
               'skipOmniGroupIds', 'pendingTimeoutMin', 'deleteEcho', 'alertWebhook'];
+(function () {
+  var sel = document.getElementById('fullScanHour');
+  for (var h = 0; h < 24; h++) { var o = document.createElement('option'); o.value = String(h); o.textContent = h + ' giờ'; sel.appendChild(o); }
+})();
 var STATUS = { pair: 'Đang đồng bộ', pending_web: 'Chờ Sapo tạo bên Omni', echo: 'Bản dội (bỏ qua)', echo_deleted: 'Bản dội đã xóa',
                dup: 'Trùng trên Omni (bỏ qua)', dup_web: 'Trùng trên Web (bỏ qua)', orphan: 'Mất 1 bên', create_failed: 'Tạo lỗi, thử lại sau 24h' };
 function $(id) { return document.getElementById(id); }
@@ -20,7 +24,7 @@ document.querySelectorAll('[data-tab]').forEach(function (b) {
 // ---- Cài đặt ----
 async function loadConfig() {
   var cfg = (await chrome.storage.local.get('config')).config || {};
-  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', dryRun: true, maxCreate: 10, intervalMin: 10, pendingTimeoutMin: 30, deleteEcho: false };
+  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', dryRun: true, maxCreate: 10, intervalMin: 10, fullScanHour: 2, pendingTimeoutMin: 30, deleteEcho: false };
   FIELDS.forEach(function (f) { var v = cfg[f] != null ? cfg[f] : d[f]; $(f).value = v == null ? '' : String(v); });
 }
 function readForm() {
@@ -31,6 +35,8 @@ function readForm() {
   c.dryRun = c.dryRun === 'true'; c.deleteEcho = c.deleteEcho === 'true';
   c.maxCreate = Number(c.maxCreate) || 0; c.intervalMin = Number(c.intervalMin) || 10;
   c.pendingTimeoutMin = Number(c.pendingTimeoutMin) || 30;
+  c.fullScanHour = Number(c.fullScanHour);
+  if ([10, 15, 30, 60].indexOf(c.intervalMin) < 0) c.intervalMin = 10;
   return c;
 }
 $('save').onclick = async function () {
@@ -47,6 +53,13 @@ $('test').onclick = async function () {
 $('run').onclick = async function () {
   this.disabled = true; $('testOut').hidden = false; $('testOut').textContent = 'Đang chạy đồng bộ…';
   var r = await send('runNow'); this.disabled = false;
+  $('testOut').textContent = r.skipped ? r.message : (r.ok ? r.summary : 'DỪNG: ' + r.error);
+};
+
+$('runFull').onclick = async function () {
+  if (!confirm('Quét toàn bộ đọc lại toàn bộ khách hàng 2 bên (vài phút, chậm rãi). Nên làm ngoài giờ làm việc. Tiếp tục?')) return;
+  this.disabled = true; $('testOut').hidden = false; $('testOut').textContent = 'Đang quét toàn bộ (chậm rãi để không làm nặng Sapo)…';
+  var r = await send('runFull'); this.disabled = false;
   $('testOut').textContent = r.skipped ? r.message : (r.ok ? r.summary : 'DỪNG: ' + r.error);
 };
 

@@ -37,6 +37,7 @@ function loadExtension(opts = {}) {
   }
   // fetch BÊN TRONG tab Omni (đường dẫn tương đối, dùng phiên đăng nhập)
   async function pageFetch(url, opt = {}) {
+    if (state.omniHang) { const e = new Error('The user aborted a request.'); e.name = 'AbortError'; throw e; }
     if (!state.loggedIn) {
       // 2 kiểu hết phiên: chuyển hướng sang trang đăng nhập, hoặc trả thẳng trang HTML tại chỗ
       return state.loginMode === 'html'

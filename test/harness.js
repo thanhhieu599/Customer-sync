@@ -40,21 +40,31 @@ function makeServer(kind) {
       Object.assign(rec, patch, { modified_on: tick() });
       return rec;
     },
+    callAt: [], ignoreSince: false,
     handle(method, url, payload) {
       srv.calls.push(method + ' ' + url);
+      srv.callAt.push(clock);
       if (srv.failNext > 0) { srv.failNext--; return [429, '{}']; }
       const u = new URL(url);
       const p = u.pathname.replace(/^\/admin\//, '');
       if (method === 'get' && p === 'customers.json') {
         const limit = Math.min(Number(u.searchParams.get('limit') || 50), kind === 'omni' ? 50 : 250);
         const page = Number(u.searchParams.get('page') || 1);
-        const all = [...db.values()];
+        let all = [...db.values()];
+        const since = u.searchParams.get('modified_on_min');
+        if (since && !srv.ignoreSince) all = all.filter(c => Date.parse(c.modified_on) >= Date.parse(since));
         const slice = all.slice((page - 1) * limit, page * limit);
         const body = { customers: JSON.parse(JSON.stringify(slice)) };
         if (kind === 'omni') body.metadata = { total: all.length, page, limit };
         return [200, JSON.stringify(body)];
       }
       if (method === 'get' && p === 'customers/count.json') return [200, JSON.stringify({ count: db.size })];
+      if (method === 'get' && p === 'orders.json') {
+        const cid = Number(u.searchParams.get('customer_id'));
+        const rec = db.get(cid);
+        const n = rec ? (kind === 'omni' ? rec.sale_order.order_purchases : rec.orders_count) : 0;
+        return [200, JSON.stringify({ metadata: { total: n }, orders: n ? [{ id: 1, customer_id: cid }] : [] })];
+      }
       const m = p.match(/^customers\/(\d+)\.json$/);
       if (method === 'post' && p === 'customers.json') {
         const c = JSON.parse(payload).customer;

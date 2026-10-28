@@ -167,7 +167,15 @@ var SyncEngine = (function () {
           }
           case 'mark_echo': {
             var status = a.echo ? 'echo' : 'dup';
-            if (a.deletable && !dry) { yield req('omni', 'delete', a.omni.id, null); status = 'echo_deleted'; }
+            if (a.deletable && !dry) {
+              // Hỏi lại Sapo ngay trước khi xóa: có đơn hàng thì KHÔNG xóa (số liệu lưu sẵn có thể đã cũ)
+              var hasOrders = yield req('omni', 'has_orders', a.omni.id, null);
+              if (hasOrders) {
+                log.add('WARN', 'Không xóa bản dội vì đã có đơn hàng', a.omni.id, a.pair.web_id, a.omni.name, 'bản chính: Omni ' + a.pair.omni_id);
+              } else {
+                yield req('omni', 'delete', a.omni.id, null); status = 'echo_deleted';
+              }
+            }
             rows.push({ omni_id: a.omni.id, web_id: '', status: status, omni_code: a.omni.code, name: a.omni.name,
                         phone: a.omni.phone, note: 'trùng với Omni ' + a.pair.omni_id + ' / Web ' + a.pair.web_id, updated_at: now });
             log.add(a.echo ? 'INFO' : 'WARN',
@@ -238,6 +246,7 @@ var SyncEngine = (function () {
     if (r.op === 'create') return c.createCustomer(r.payload);
     if (r.op === 'update') return c.updateCustomer(r.id, r.payload);
     if (r.op === 'delete') return c.deleteCustomer(r.id);
+    if (r.op === 'has_orders') return c.hasOrders(r.id);
     throw new Error('Thao tác không hợp lệ: ' + r.op);
   }
 

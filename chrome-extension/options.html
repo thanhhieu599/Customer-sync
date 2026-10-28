@@ -34,7 +34,11 @@
                             <option value="false">CHẠY THẬT – ghi dữ liệu lên Sapo</option></select>
         <label for="maxCreate">Số khách tạo mới tối đa mỗi lượt</label><input id="maxCreate" type="number" min="0" max="1000">
         <label for="intervalMin">Chu kỳ chạy tự động</label>
-        <select id="intervalMin"><option>5</option><option>10</option><option>15</option><option>30</option><option>60</option></select>
+        <select id="intervalMin"><option>10</option><option>15</option><option>30</option><option>60</option></select>
+        <div class="hint">Mỗi lượt chỉ hỏi Sapo "khách nào vừa thay đổi" – rất nhẹ.</div>
+        <label for="fullScanHour">Giờ quét toàn bộ để đối soát (1 lần/ngày)</label>
+        <select id="fullScanHour"></select>
+        <div class="hint">Nên chọn giờ đêm, ít người dùng Sapo (mặc định 2 giờ sáng).</div>
         <label for="skipOmniGroupIds">Mã nhóm khách Omni KHÔNG đẩy lên Web</label>
         <input id="skipOmniGroupIds" placeholder="ví dụ 579639 (nhóm Bán lẻ)">
         <div class="hint">Cách nhau dấu phẩy. Chuyển khách công ty ra khỏi nhóm Bán lẻ trước khi loại nhóm này.</div>
@@ -49,6 +53,7 @@
       <button id="save" class="primary">Lưu cài đặt</button>
       <button id="test">Kiểm tra kết nối</button>
       <button id="run">Chạy đồng bộ 1 lần</button>
+      <button id="runFull">Quét toàn bộ ngay…</button>
       <span id="saved" class="muted"></span>
     </p>
     <pre id="testOut" hidden></pre>

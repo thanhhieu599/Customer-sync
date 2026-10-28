@@ -12,7 +12,7 @@ input, select { font:inherit; padding:7px 9px; border:1px solid var(--line); bor
 label { display:block; font-weight:600; margin:12px 0 4px; }
 .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-weight:600; font-size:12px; color:#fff; }
-.st-ok{background:var(--ok)} .st-warn{background:var(--warn)} .st-error,.st-session{background:var(--err)} .st-running{background:var(--brand)} .st-off{background:var(--muted)}
+.st-ok{background:var(--ok)} .st-warn{background:var(--warn)} .st-error,.st-session{background:var(--err)} .st-running{background:var(--brand)} .st-paused{background:var(--warn)} .st-off{background:var(--muted)}
 pre { font-family:inherit; white-space:pre-wrap; background:var(--soft); padding:10px; border-radius:8px; font-size:12px; margin:8px 0; }
 table { border-collapse:collapse; width:100%; font-size:12px; }
 th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }

@@ -17,7 +17,7 @@ function SapoClient(opts) {
   this.key = opts.key || '';
   this.secret = opts.secret || '';
   this.token = opts.token || '';
-  this.minGapMs = opts.minGapMs == null ? 350 : opts.minGapMs; // ~3 lệnh/giây
+  this.minGapMs = opts.minGapMs == null ? 600 : opts.minGapMs; // tối đa ~1,6 lệnh/giây, nhẹ cho Sapo
   this.lastCall = 0;
   this.calls = 0;
 }
@@ -99,6 +99,13 @@ SapoClient.prototype.createCustomer = function (payload) {
 
 SapoClient.prototype.updateCustomer = function (id, payload) {
   return this.request('put', 'customers/' + id + '.json', payload).customer;
+};
+
+/** Khách đã có đơn hàng chưa (hỏi trực tiếp Sapo) */
+SapoClient.prototype.hasOrders = function (id) {
+  var j = this.request('get', 'orders.json?customer_id=' + id + '&limit=1&page=1');
+  var total = j.metadata && j.metadata.total != null ? j.metadata.total : (j.orders || []).length;
+  return total > 0;
 };
 
 SapoClient.prototype.deleteCustomer = function (id) {

@@ -99,6 +99,36 @@ var SyncCore = (function () {
     };
   }
 
+  // ---------- Thu gọn bản ghi để lưu bản sao cục bộ (chỉ giữ trường cần cho đồng bộ) ----------
+  function slimAddress(a, phoneKey) {
+    if (!a) return null;
+    var o = { id: a.id, address1: a.address1 || '' };
+    o[phoneKey] = a[phoneKey] || '';
+    if (a.status) o.status = a.status;
+    if (a['default'] === true) o['default'] = true;
+    if (a.primary === true) o.primary = true;
+    return o;
+  }
+  function trimOmni(c) {
+    var addr = pickAddress(c.addresses);
+    return {
+      id: c.id, code: c.code || '', name: c.name || '', phone_number: c.phone_number || '', email: c.email || '',
+      customer_group_id: c.customer_group_id == null ? null : c.customer_group_id, status: c.status || 'active',
+      created_on: c.created_on || '', modified_on: c.modified_on || '',
+      sale_order: { order_purchases: Number((c.sale_order && c.sale_order.order_purchases) || 0) },
+      addresses: addr ? [slimAddress(addr, 'phone_number')] : []
+    };
+  }
+  function trimWeb(c) {
+    var addr = c.default_address || pickAddress(c.addresses);
+    return {
+      id: c.id, first_name: c.first_name || '', last_name: c.last_name || '', phone: c.phone || '', email: c.email || '',
+      tags: c.tags || '', orders_count: Number(c.orders_count || 0),
+      created_on: c.created_on || '', modified_on: c.modified_on || '',
+      default_address: slimAddress(addr, 'phone')
+    };
+  }
+
   // ---------- Băm & khóa ghép ----------
   function fnv1a(str) {
     var h = 0x811c9dc5;
@@ -186,6 +216,7 @@ var SyncCore = (function () {
         if (row.omni_id) claimedO[row.omni_id] = true;
         if (row.web_id) claimedW[row.web_id] = true;
         if (!o || !w) {
+          if (cfg.noOrphans) return;   // lượt chỉ đọc thay đổi: chưa đủ căn cứ kết luận khách đã bị xóa
           stats.orphans++;
           actions.push({ type: 'orphan', omni_id: row.omni_id, web_id: row.web_id,
                          missing: !o ? 'omni' : 'web' });
@@ -381,7 +412,7 @@ var SyncCore = (function () {
   return {
     FIELDS: FIELDS,
     normPhone: normPhone, intlPhone: intlPhone, normEmail: normEmail, normText: normText,
-    fromOmni: fromOmni, fromWeb: fromWeb, hashOf: hashOf, keysOf: keysOf, diff: diff,
+    fromOmni: fromOmni, fromWeb: fromWeb, trimOmni: trimOmni, trimWeb: trimWeb, hashOf: hashOf, keysOf: keysOf, diff: diff,
     mergeForLink: mergeForLink, plan: plan, toWebPayload: toWebPayload, toOmniPayload: toOmniPayload,
     mergeWebTags: mergeWebTags
   };
@@ -558,7 +589,15 @@ var SyncEngine = (function () {
           }
           case 'mark_echo': {
             var status = a.echo ? 'echo' : 'dup';
-            if (a.deletable && !dry) { yield req('omni', 'delete', a.omni.id, null); status = 'echo_deleted'; }
+            if (a.deletable && !dry) {
+              // Hỏi lại Sapo ngay trước khi xóa: có đơn hàng thì KHÔNG xóa (số liệu lưu sẵn có thể đã cũ)
+              var hasOrders = yield req('omni', 'has_orders', a.omni.id, null);
+              if (hasOrders) {
+                log.add('WARN', 'Không xóa bản dội vì đã có đơn hàng', a.omni.id, a.pair.web_id, a.omni.name, 'bản chính: Omni ' + a.pair.omni_id);
+              } else {
+                yield req('omni', 'delete', a.omni.id, null); status = 'echo_deleted';
+              }
+            }
             rows.push({ omni_id: a.omni.id, web_id: '', status: status, omni_code: a.omni.code, name: a.omni.name,
                         phone: a.omni.phone, note: 'trùng với Omni ' + a.pair.omni_id + ' / Web ' + a.pair.web_id, updated_at: now });
             log.add(a.echo ? 'INFO' : 'WARN',
@@ -629,6 +668,7 @@ var SyncEngine = (function () {
     if (r.op === 'create') return c.createCustomer(r.payload);
     if (r.op === 'update') return c.updateCustomer(r.id, r.payload);
     if (r.op === 'delete') return c.deleteCustomer(r.id);
+    if (r.op === 'has_orders') return c.hasOrders(r.id);
     throw new Error('Thao tác không hợp lệ: ' + r.op);
   }
 
@@ -657,7 +697,7 @@ function SapoClient(opts) {
   this.key = opts.key || '';
   this.secret = opts.secret || '';
   this.token = opts.token || '';
-  this.minGapMs = opts.minGapMs == null ? 350 : opts.minGapMs; // ~3 lệnh/giây
+  this.minGapMs = opts.minGapMs == null ? 600 : opts.minGapMs; // tối đa ~1,6 lệnh/giây, nhẹ cho Sapo
   this.lastCall = 0;
   this.calls = 0;
 }
@@ -739,6 +779,13 @@ SapoClient.prototype.createCustomer = function (payload) {
 
 SapoClient.prototype.updateCustomer = function (id, payload) {
   return this.request('put', 'customers/' + id + '.json', payload).customer;
+};
+
+/** Khách đã có đơn hàng chưa (hỏi trực tiếp Sapo) */
+SapoClient.prototype.hasOrders = function (id) {
+  var j = this.request('get', 'orders.json?customer_id=' + id + '&limit=1&page=1');
+  var total = j.metadata && j.metadata.total != null ? j.metadata.total : (j.orders || []).length;
+  return total > 0;
 };
 
 SapoClient.prototype.deleteCustomer = function (id) {

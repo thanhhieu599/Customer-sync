@@ -1,4 +1,4 @@
-var LABEL = { ok: 'Hoạt động tốt', running: 'Đang chạy', warn: 'Có cảnh báo', error: 'Có lỗi', session: 'Cần đăng nhập lại Omni', off: 'Đang tắt' };
+var LABEL = { ok: 'Hoạt động tốt', running: 'Đang chạy', warn: 'Có cảnh báo', error: 'Có lỗi', session: 'Cần đăng nhập lại Omni', paused: 'Tạm nghỉ', off: 'Đang tắt' };
 function send(cmd, extra) { return chrome.runtime.sendMessage(Object.assign({ cmd: cmd }, extra || {})); }
 function fmt(t) { return t ? new Date(t).toLocaleString('vi-VN') : '—'; }
 
@@ -14,6 +14,7 @@ async function render() {
   sum.hidden = !st.lastSummary; sum.textContent = st.lastSummary || '';
   document.getElementById('toggle').textContent = cfg.enabled ? 'Tắt tự động' : 'Bật tự động';
   document.getElementById('run').disabled = st.state === 'running';
+  document.getElementById('resume').hidden = st.state !== 'paused';
 }
 
 document.getElementById('run').onclick = async function () {
@@ -35,6 +36,10 @@ document.getElementById('omni').onclick = async function () {
   var tabs = await chrome.tabs.query({ url: base + '/*' });
   if (tabs[0]) chrome.tabs.update(tabs[0].id, { active: true });
   else chrome.tabs.create({ url: base + '/admin/dashboard', pinned: true });
+};
+document.getElementById('resume').onclick = async function () {
+  if (!confirm('Bỏ tạm nghỉ? Chỉ làm khi chắc Sapo Omni đã hoạt động bình thường trở lại.')) return;
+  await send('resume'); render();
 };
 document.getElementById('opts').onclick = function () { chrome.runtime.openOptionsPage(); };
 chrome.storage.onChanged.addListener(render);
