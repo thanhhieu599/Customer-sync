@@ -1,0 +1,9 @@
+{
+  "name": "sapo-sync",
+  "private": true,
+  "description": "Đồng bộ khách hàng 2 chiều Sapo Omni <-> Sapo Web (Google Apps Script)",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18" }
+}
