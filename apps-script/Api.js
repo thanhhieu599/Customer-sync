@@ -69,7 +69,13 @@ SapoClient.prototype.listCustomers = function () {
       path += '&fields=id,first_name,last_name,email,phone,tags,addresses,default_address,' +
               'orders_count,created_on,modified_on';
     }
-    var j = this.request('get', path);
+    var j;
+    try { j = this.request('get', path); }
+    catch (e) {
+      // Một số máy chủ Sapo giới hạn số khách/trang thấp hơn → tự hạ xuống 50 và đọc lại từ đầu
+      if (page === 1 && limit === 250 && /HTTP 4(00|22)/.test(e.message)) { limit = 50; page = 0; continue; }
+      throw e;
+    }
     var list = j.customers || [];
     var fresh = 0;
     list.forEach(function (c) { if (!seen[c.id]) { seen[c.id] = true; all.push(c); fresh++; } });

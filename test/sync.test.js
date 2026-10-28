@@ -37,8 +37,9 @@ test('lượt đầu: ghép đúng, tạo khách còn thiếu, nhận diện b�
   assert.strictEqual(sys.web.db.size, 3, 'Intel được tạo lên Web');
   const intelWeb = [...sys.web.db.values()].find(c => c.first_name === 'Intel Products Vietnam');
   assert.strictEqual(intelWeb.email, 'purchasing@intel.example');
-  assert.match(intelWeb.tags, /MST:0301234567/);
+  assert.doesNotMatch(intelWeb.tags, /MST/, 'không còn đồng bộ MST');
   assert.match(intelWeb.tags, /omni:CUZN0/);
+  assert.strictEqual(intelWeb.phone, '+84281234567', 'SĐT gửi lên Web dạng +84');
 
   // Sapo dội Intel về Omni → lượt 2 phải nhận ra, không tạo thêm gì
   sys.connector.run();
@@ -197,4 +198,116 @@ test('an toàn: nhiều cặp mất 1 bên cùng lúc → dừng và gửi email
   sys.run();
   assert.strictEqual(byStatus(sys, 'orphan').length, 0, 'không đánh dấu hàng loạt');
   assert.ok(sys.mails.some(m => /bị dừng/.test(m.sub)));
+});
+
+
+test('MST không còn dùng để ghép: 2 chi nhánh cùng MST, khác SĐT → 2 khách riêng trên Web', () => {
+  const sys = loadSystem();
+  sys.omni.add({ name: 'Intel - Phòng Mua hàng', phone_number: '0281111111', tax_number: '0301234567' });
+  sys.omni.add({ name: 'Intel - Phòng EHS', phone_number: '0282222222', tax_number: '0301234567' });
+  sys.run(); sys.connector.run(); sys.run();
+  assert.strictEqual(byStatus(sys, 'pair').length, 2);
+  assert.strictEqual(byStatus(sys, 'dup').length, 0);
+  assert.strictEqual(sys.web.db.size, 2);
+});
+
+test('ghép lần đầu: trường Omni trống thì giữ dữ liệu Web và bổ sung ngược sang Omni', () => {
+  const sys = loadSystem();
+  const O = sys.omni.add({ name: 'Onsemi Việt Nam', phone_number: '0911222333', sale_order: { order_purchases: 2 } });
+  const W = sys.web.add({ first_name: 'Onsemi', phone: '+84911222333', email: 'buyer@onsemi.example',
+    addresses: [{ address1: 'KCN Long Hậu, Long An' }] });
+  sys.connector.run();
+  sys.run();
+  assert.strictEqual(sys.web.db.get(W.id).email, 'buyer@onsemi.example', 'không xóa email bên Web');
+  assert.strictEqual(sys.web.db.get(W.id).first_name, 'Onsemi Việt Nam', 'tên lấy theo Omni');
+  assert.strictEqual(sys.omni.db.get(O.id).email, 'buyer@onsemi.example', 'Omni được bổ sung email');
+  assert.strictEqual(sys.omni.db.get(O.id).addresses[0].address1, 'KCN Long Hậu, Long An');
+  resetCalls(sys); sys.run();
+  assert.deepStrictEqual(writes(sys.web), []); assert.deepStrictEqual(writes(sys.omni), []);
+});
+
+test('nhóm bị loại: khách Web trùng SĐT khách Omni nhóm Bán lẻ → ghép, không tạo trùng; bản dội nhóm Bán lẻ vẫn nhận ra', () => {
+  const sys = loadSystem({ props: { SKIP_OMNI_GROUP_IDS: '579639' } });
+  const retail = sys.omni.add({ name: 'Anh Tuấn', phone_number: '0977000111', customer_group_id: 579639 });
+  const b2b = sys.omni.add({ name: 'Foxconn', phone_number: '0977000222', customer_group_id: 1 });
+  sys.omni.add({ name: 'Chị Lan', phone_number: '0977000333', customer_group_id: 579639 });
+  const W = sys.web.add({ first_name: 'Tuấn', phone: '0977000111' });
+  sys.run();
+  // Sapo dội cả khách Web của Tuấn lẫn khách Foxconn vừa tạo; bản dội rơi vào nhóm mặc định Bán lẻ
+  sys.connector.run();
+  for (const c of sys.omni.db.values()) if (c.customer_group_id == null) c.customer_group_id = 579639;
+  tick(31 * 60000);
+  sys.run();
+  assert.ok(byStatus(sys, 'pair').find(r => r.omni_id === String(retail.id) && r.web_id === String(W.id)));
+  assert.ok(byStatus(sys, 'pair').find(r => r.omni_id === String(b2b.id)));
+  assert.strictEqual(sys.web.db.size, 2, 'Chị Lan (Bán lẻ, chỉ có trên Omni) không bị đẩy lên Web');
+  assert.strictEqual(byStatus(sys, 'echo').length, 2);
+  assert.strictEqual([...sys.omni.db.values()].filter(c => c.phone_number === '0977000111' || c.phone_number === '+84977000111').length, 2,
+    'chỉ có bản gốc + 1 bản dội, không tạo thêm');
+});
+
+test('Sapo từ chối tạo khách → ghi lỗi, không chặn khách khác, 24 giờ sau mới thử lại', () => {
+  const sys = loadSystem({ props: { MAX_CREATE_PER_RUN: '1' } });
+  const bad = sys.omni.add({ name: 'Khách lỗi', phone_number: '0966000001' });
+  const good = sys.omni.add({ name: 'Khách tốt', phone_number: '0966000002' });
+  const origPost = sys.web.handle;
+  let reject = true;
+  sys.web.handle = (m, url, body) => (m === 'post' && reject && /Khách lỗi/.test(body))
+    ? [422, '{"errors":"phone không hợp lệ"}'] : origPost(m, url, body);
+
+  sys.run();                                   // lượt 1: khách lỗi bị từ chối
+  const failed = byStatus(sys, 'create_failed');
+  assert.strictEqual(failed.length, 1);
+  assert.strictEqual(failed[0].omni_id, String(bad.id));
+  assert.match(failed[0].note, /thử lại sau 24 giờ/);
+
+  sys.run();                                   // lượt 2: suất tạo dành cho khách tốt
+  assert.ok(byStatus(sys, 'pair').find(r => r.omni_id === String(good.id)), 'khách tốt không bị chặn');
+  resetCalls(sys); sys.run();
+  assert.strictEqual(sys.web.calls.filter(c => c.startsWith('post')).length, 0, 'chưa thử lại trong 24 giờ');
+
+  reject = false;
+  tick(25 * 3600 * 1000);
+  sys.run();
+  assert.ok(byStatus(sys, 'pair').find(r => r.omni_id === String(bad.id)), 'sau 24 giờ tạo lại thành công');
+  assert.strictEqual(byStatus(sys, 'create_failed').length, 0);
+});
+
+test('Sapo không lưu một trường → ghi cảnh báo, không ghi lặp lại mãi', () => {
+  const sys = loadSystem();
+  const { O2 } = seed(sys);
+  sys.run(); sys.connector.run(); sys.run();
+  const jabilPair = byStatus(sys, 'pair').find(r => /Jabil/.test(r.name));
+  const origPut = sys.omni.handle;
+  sys.omni.handle = (m, url, body) => {
+    if (m === 'put' && body) { const b = JSON.parse(body); delete b.customer.email; body = JSON.stringify(b); }
+    return origPut(m, url, body);
+  };
+  sys.web.edit(Number(jabilPair.web_id), { email: 'moi@jabil.example' });
+  sys.run();
+  assert.ok(sys.logRows().some(l => /Sapo Omni không lưu đúng/.test(l.action) && /Email/.test(l.detail)));
+  resetCalls(sys); sys.run(); sys.run();
+  assert.deepStrictEqual(writes(sys.omni), [], 'không ghi lặp');
+  assert.deepStrictEqual(writes(sys.web), [], 'không ghi đè ngược lại Web');
+});
+
+test('an toàn: Omni trả về 0 khách → dừng, không tạo gì', () => {
+  const sys = loadSystem();
+  sys.web.add({ first_name: 'A', phone: '0900000001' });
+  sys.run();
+  assert.ok(sys.logRows().some(l => l.action === 'DỪNG' && /Omni trả về 0 khách/.test(l.detail)));
+  assert.strictEqual(sys.mapRows().length, 0);
+});
+
+
+test('Omni không nhận 250 khách/trang → tự hạ xuống 50 và vẫn đọc đủ', () => {
+  const sys = loadSystem();
+  for (let i = 0; i < 120; i++) sys.omni.add({ name: 'KH ' + i, phone_number: '09120000' + String(i).padStart(2, '0') });
+  const orig = sys.omni.handle;
+  sys.omni.handle = (m, url, body) => (m === 'get' && /limit=250/.test(url))
+    ? [400, '{"errors":"limit tối đa 50"}'] : orig(m, url, body);
+  sys.run();
+  assert.ok(sys.logRows().some(l => /Omni 120 khách/.test(l.detail)), 'đọc đủ 120 khách');
+  sys.run(); sys.run();                               // mỗi lượt tạo tối đa 50 khách
+  assert.strictEqual(byStatus(sys, 'pair').length, 120);
 });

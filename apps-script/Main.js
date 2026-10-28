@@ -11,7 +11,7 @@ function onOpen() {
     .addItem('1. Kiểm tra kết nối', 'selfTest')
     .addItem('2. Chạy đồng bộ 1 lần', 'runSync')
     .addSeparator()
-    .addItem('Bật tự động (mỗi 10 phút)', 'installTrigger')
+    .addItem('Bật tự động', 'installTrigger')
     .addItem('Tắt tự động', 'removeTriggers')
     .addToUi();
 }
@@ -32,8 +32,10 @@ function getConfig_() {
     pendingTimeoutMin: num(p.PENDING_WEB_TIMEOUT_MIN, 30),
     deleteEcho: bool(p.DELETE_ECHO, false),        // chỉ bật khi phép thử A đạt
     skipOmniGroupIds: String(p.SKIP_OMNI_GROUP_IDS || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
-    alertEmail: p.ALERT_EMAIL || ''
+    alertEmail: p.ALERT_EMAIL || '',
+    intervalMin: num(p.SYNC_INTERVAL_MIN, 10)
   };
+  if ([5, 10, 15, 30].indexOf(cfg.intervalMin) < 0) throw new Error('SYNC_INTERVAL_MIN chỉ nhận 5, 10, 15 hoặc 30');
   var missing = [];
   if (!cfg.webBase) missing.push('WEB_BASE_URL');
   if (!cfg.webKey) missing.push('WEB_API_KEY');
@@ -95,22 +97,27 @@ function runSync() {
     var omniList = c.omni.listCustomers();
     var webList = c.web.listCustomers();
     var rows = loadRows_();
+    var pairCount = rows.filter(function (r) { return r.status === 'pair'; }).length;
+    // An toàn: Omni không thể rỗng; Web chỉ được rỗng khi chưa ghép cặp nào
+    if (!omniList.length || (!webList.length && pairCount > 0)) {
+      throw new Error('Sapo ' + (!omniList.length ? 'Omni' : 'Web') + ' trả về 0 khách hàng (bất thường). ' +
+        'Đã dừng, không thay đổi gì. Kiểm tra API key / quyền truy cập.');
+    }
     var result = SyncCore.plan({ omni: omniList, web: webList, rows: rows, now: now, cfg: cfg });
-    var s0 = result.stats;
-    if (s0.orphans > Math.max(5, 0.2 * (s0.pairs + s0.orphans))) {
-      throw new Error('Có ' + s0.orphans + ' cặp bị mất 1 bên trong 1 lượt (bất thường). ' +
+    var s = result.stats;
+    if (s.orphans > Math.max(5, 0.2 * (s.pairs + s.orphans))) {
+      throw new Error('Có ' + s.orphans + ' cặp bị mất 1 bên trong 1 lượt (bất thường). ' +
         'Đã dừng, không thay đổi gì. Kiểm tra API key / quyền truy cập rồi chạy lại.');
     }
     var done = executeActions_(result.actions, rows, c, cfg, now, log, started);
     if (!cfg.dryRun) saveRows_(rows);
-    var s = result.stats;
     var summary = (cfg.dryRun ? '[CHẠY THỬ] ' : '') +
       'Omni ' + omniList.length + ' khách, Web ' + webList.length + ' khách | cặp: ' + s.pairs +
       ', Omni→Web: ' + s.o2w + ', Web→Omni: ' + s.w2o + ', xung đột: ' + s.conflicts +
       ', ghép mới: ' + s.linked + ', tạo trên Web: ' + s.createdWeb + ', tạo trên Omni: ' + s.createdOmni +
       ', bản dội: ' + s.echoes + ', bản trùng: ' + s.dups + ', chờ: ' + s.pending +
       ', mất 1 bên: ' + s.orphans + ', bỏ qua: ' + s.skipped + ', để lượt sau: ' + (s.deferred + done.deferred) +
-      ' | lỗi: ' + done.errors + ' | API: ' + (c.omni.calls + c.web.calls) + ' lệnh, ' +
+      ' | lỗi: ' + done.errors + ', cảnh báo: ' + done.warnings + ' | API: ' + (c.omni.calls + c.web.calls) + ' lệnh, ' +
       Math.round((Date.now() - started) / 1000) + 's';
     log.add(done.errors ? 'WARN' : 'INFO', 'TÓM TẮT', '', '', '', summary);
     Logger.log(summary);
@@ -129,8 +136,9 @@ var TIME_BUDGET_MS = 4.5 * 60 * 1000; // Apps Script giới hạn 6 phút/lượ
 
 function executeActions_(actions, rows, c, cfg, now, log, started) {
   var dry = cfg.dryRun;
-  var errors = 0, deferred = 0;
+  var errors = 0, deferred = 0, warnings = 0;
   var tag = dry ? '[THỬ] ' : '';
+  var H = SyncCore.hashOf;
 
   function findRow(omniId, webId) {
     for (var i = 0; i < rows.length; i++) {
@@ -139,15 +147,24 @@ function executeActions_(actions, rows, c, cfg, now, log, started) {
     return null;
   }
   function removeRow(r) { var i = rows.indexOf(r); if (i >= 0) rows.splice(i, 1); }
-  function upsertPair(o, w, hashO, hashW, extra) {
+  function upsertPair(o, w, hashO, hashW, note) {
     var r = findRow(o.id, null) || findRow(null, w.id);
     if (!r) { r = {}; rows.push(r); }
+    if (r.status !== 'pair') r.linked_at = now;
     r.omni_id = o.id; r.web_id = w.id; r.status = 'pair';
     r.hash_o = hashO; r.hash_w = hashW;
-    r.linked_at = r.linked_at || now;
-    r.first_seen = r.first_seen || '';
+    r.first_seen = '';
     r.omni_code = o.code || r.omni_code || ''; r.name = o.name || w.name; r.phone = o.phone || w.phone;
-    r.note = extra || ''; r.updated_at = now;
+    r.note = note || ''; r.updated_at = now;
+  }
+  /** Sau khi ghi: Sapo có lưu đủ các trường không? Không đủ thì cảnh báo (không ghi lặp lại). */
+  function checkAccepted(expected, savedRaw, from, sideLabel, omniId, webId) {
+    if (!savedRaw) return;
+    var saved = from(savedRaw);
+    var d = SyncCore.diff(expected, saved);
+    if (!d.length) return;
+    warnings++;
+    log.add('WARN', tag + sideLabel + ' không lưu đúng dữ liệu đã gửi', omniId, webId, expected.name, describe_(d));
   }
 
   for (var i = 0; i < actions.length; i++) {
@@ -161,56 +178,70 @@ function executeActions_(actions, rows, c, cfg, now, log, started) {
           break;
         }
         case 'push_o2w': {
-          var hw1 = SyncCore.hashOf(a.omni);
+          var hw1 = H(a.omni);
           if (!dry) {
             var nw = c.web.updateCustomer(a.web.id, SyncCore.toWebPayload(a.omni, a.web));
-            if (nw) hw1 = SyncCore.hashOf(SyncCore.fromWeb(nw));
+            if (nw) { hw1 = H(SyncCore.fromWeb(nw)); checkAccepted(a.omni, nw, SyncCore.fromWeb, 'Sapo Web', a.omni.id, a.web.id); }
           }
           var r1 = findRow(a.omni.id, a.web.id);
-          if (r1) { r1.hash_o = SyncCore.hashOf(a.omni); r1.hash_w = hw1; r1.name = a.omni.name; r1.phone = a.omni.phone; r1.updated_at = now; }
-          log.add('INFO', tag + 'Omni → Web' + (a.conflict ? ' (xung đột, Omni mới hơn)' : ''), a.omni.id, a.web.id, a.omni.name, diff_(a.web, a.omni));
+          if (r1) { r1.hash_o = H(a.omni); r1.hash_w = hw1; r1.name = a.omni.name; r1.phone = a.omni.phone; r1.updated_at = now; }
+          log.add('INFO', tag + 'Omni → Web' + (a.conflict ? ' (xung đột, Omni sửa sau)' : ''), a.omni.id, a.web.id, a.omni.name, diff_(a.web, a.omni));
           break;
         }
         case 'push_w2o': {
-          var ho2 = SyncCore.hashOf(a.web);
+          var ho2 = H(a.web);
           if (!dry) {
             var no = c.omni.updateCustomer(a.omni.id, SyncCore.toOmniPayload(a.web, a.omni));
-            if (no) ho2 = SyncCore.hashOf(SyncCore.fromOmni(no));
+            if (no) { ho2 = H(SyncCore.fromOmni(no)); checkAccepted(a.web, no, SyncCore.fromOmni, 'Sapo Omni', a.omni.id, a.web.id); }
           }
           var r2 = findRow(a.omni.id, a.web.id);
-          if (r2) { r2.hash_o = ho2; r2.hash_w = SyncCore.hashOf(a.web); r2.name = a.web.name; r2.phone = a.web.phone; r2.updated_at = now; }
-          log.add('INFO', tag + 'Web → Omni' + (a.conflict ? ' (xung đột, Web mới hơn)' : ''), a.omni.id, a.web.id, a.web.name, diff_(a.omni, a.web));
+          if (r2) { r2.hash_o = ho2; r2.hash_w = H(a.web); r2.name = a.web.name; r2.phone = a.web.phone; r2.updated_at = now; }
+          log.add('INFO', tag + 'Web → Omni' + (a.conflict ? ' (xung đột, Web sửa sau)' : ''), a.omni.id, a.web.id, a.web.name, diff_(a.omni, a.web));
           break;
         }
         case 'link': {
-          var hw3 = SyncCore.hashOf(a.web);
-          if (a.needPush && !dry) {
-            var nw3 = c.web.updateCustomer(a.web.id, SyncCore.toWebPayload(a.omni, a.web));
-            hw3 = nw3 ? SyncCore.hashOf(SyncCore.fromWeb(nw3)) : SyncCore.hashOf(a.omni);
+          // Gộp lần đầu: Omni làm chuẩn, trường Omni trống thì lấy từ Web; ghi phần khác biệt sang 2 bên
+          var m = a.merged, hoL = H(a.omni), hwL = H(a.web);
+          if (a.pushWeb) {
+            hwL = H(m);
+            if (!dry) {
+              var nwL = c.web.updateCustomer(a.web.id, SyncCore.toWebPayload(m, a.web));
+              if (nwL) { hwL = H(SyncCore.fromWeb(nwL)); checkAccepted(m, nwL, SyncCore.fromWeb, 'Sapo Web', a.omni.id, a.web.id); }
+            }
           }
-          upsertPair(a.omni, a.web, SyncCore.hashOf(a.omni), hw3, 'ghép theo SĐT/MST/email');
-          log.add('INFO', tag + 'Ghép cặp' + (a.needPush ? ' + cập nhật Web theo Omni' : ''), a.omni.id, a.web.id, a.omni.name,
-                  a.needPush ? diff_(a.web, a.omni) : '');
+          if (a.pushOmni) {
+            hoL = H(m);
+            if (!dry) {
+              var noL = c.omni.updateCustomer(a.omni.id, SyncCore.toOmniPayload(m, a.omni));
+              if (noL) { hoL = H(SyncCore.fromOmni(noL)); checkAccepted(m, noL, SyncCore.fromOmni, 'Sapo Omni', a.omni.id, a.web.id); }
+            }
+          }
+          upsertPair(a.omni, a.web, hoL, hwL, 'ghép theo SĐT/email');
+          var parts = [];
+          if (a.pushWeb) parts.push('Web: ' + diff_(a.web, m));
+          if (a.pushOmni) parts.push('Omni: ' + diff_(a.omni, m));
+          log.add('INFO', tag + 'Ghép cặp' + (parts.length ? ' + bổ sung dữ liệu' : ''), a.omni.id, a.web.id, a.omni.name, parts.join(' | '));
           break;
         }
         case 'create_web': {
-          var wid = 'THỬ-' + a.omni.id, hw4 = SyncCore.hashOf(a.omni);
+          var wid = 'THỬ-' + a.omni.id, hw4 = H(a.omni);
           if (!dry) {
             var cw = c.web.createCustomer(SyncCore.toWebPayload(a.omni, null));
-            wid = String(cw.id); hw4 = SyncCore.hashOf(SyncCore.fromWeb(cw));
+            wid = String(cw.id); hw4 = H(SyncCore.fromWeb(cw));
+            checkAccepted(a.omni, cw, SyncCore.fromWeb, 'Sapo Web', a.omni.id, wid);
           }
-          upsertPair(a.omni, { id: wid, name: a.omni.name, phone: a.omni.phone }, SyncCore.hashOf(a.omni), hw4, 'tạo trên Web từ Omni');
+          upsertPair(a.omni, { id: wid, name: a.omni.name, phone: a.omni.phone }, H(a.omni), hw4, 'tạo trên Web từ Omni');
           log.add('INFO', tag + 'Tạo khách trên Web', a.omni.id, wid, a.omni.name, (a.omni.phone || '') + ' ' + (a.omni.email || ''));
           break;
         }
         case 'create_omni': {
-          var oid = 'THỬ-' + a.web.id, ho5 = SyncCore.hashOf(a.web), code = '';
+          var oid = 'THỬ-' + a.web.id, ho5 = H(a.web), code = '';
           if (!dry) {
             var co = c.omni.createCustomer(SyncCore.toOmniPayload(a.web, null));
-            oid = String(co.id); code = co.code || ''; ho5 = SyncCore.hashOf(SyncCore.fromOmni(co));
+            oid = String(co.id); code = co.code || ''; ho5 = H(SyncCore.fromOmni(co));
+            checkAccepted(a.web, co, SyncCore.fromOmni, 'Sapo Omni', oid, a.web.id);
           }
-          var pend = findRow(null, a.web.id); if (pend) removeRow(pend);
-          upsertPair({ id: oid, code: code, name: a.web.name, phone: a.web.phone }, a.web, ho5, SyncCore.hashOf(a.web), 'tạo trên Omni từ Web');
+          upsertPair({ id: oid, code: code, name: a.web.name, phone: a.web.phone }, a.web, ho5, H(a.web), 'tạo trên Omni từ Web');
           log.add('INFO', tag + 'Tạo khách trên Omni', oid, a.web.id, a.web.name, (a.web.phone || '') + ' ' + (a.web.email || ''));
           break;
         }
@@ -250,17 +281,30 @@ function executeActions_(actions, rows, c, cfg, now, log, started) {
     } catch (e) {
       errors++;
       var who = a.omni || a.web || {};
+      // Tạo khách thất bại: ghi lại để 24 giờ sau mới thử lại
+      if (a.type === 'create_web' || a.type === 'create_omni') {
+        var key = a.type === 'create_web' ? findRow(a.omni.id, null) : findRow(null, a.web.id);
+        if (!key) { key = {}; rows.push(key); }
+        key.omni_id = a.type === 'create_web' ? a.omni.id : '';
+        key.web_id = a.type === 'create_omni' ? a.web.id : '';
+        key.status = 'create_failed'; key.name = who.name; key.phone = who.phone;
+        key.note = 'Sapo từ chối, thử lại sau 24 giờ: ' + String(e.message).slice(0, 200); key.updated_at = now;
+      }
       log.add('ERROR', tag + a.type, a.omni ? a.omni.id : a.omni_id, a.web ? a.web.id : a.web_id, who.name || '', e.message);
     }
   }
-  return { errors: errors, deferred: deferred };
+  return { errors: errors, deferred: deferred, warnings: warnings };
+}
+
+var FIELD_LABELS_ = { name: 'Tên', phone: 'SĐT', email: 'Email', address: 'Địa chỉ' };
+
+function describe_(d) {
+  return d.map(function (x) { return FIELD_LABELS_[x.field] + ': "' + x.from + '" → "' + x.to + '"'; }).join('; ');
 }
 
 /** Mô tả ngắn các trường thay đổi để ghi nhật ký */
 function diff_(from, to) {
-  var labels = { name: 'Tên', phone: 'SĐT', email: 'Email', tax: 'MST', address: 'Địa chỉ' };
-  return Object.keys(labels).filter(function (k) { return (from[k] || '') !== (to[k] || ''); })
-    .map(function (k) { return labels[k] + ': "' + (from[k] || '') + '" → "' + (to[k] || '') + '"'; }).join('; ');
+  return describe_(SyncCore.diff(from, to));
 }
 
 // ---------- Cảnh báo email (tối đa 1 email/giờ) ----------
@@ -275,9 +319,10 @@ function alert_(cfg, subject, body) {
 
 // ---------- Hẹn giờ tự động ----------
 function installTrigger() {
+  var cfg = getConfig_();
   removeTriggers();
-  ScriptApp.newTrigger('runSync').timeBased().everyMinutes(10).create();
-  var msg = 'Đã bật đồng bộ tự động mỗi 10 phút.';
+  ScriptApp.newTrigger('runSync').timeBased().everyMinutes(cfg.intervalMin).create();
+  var msg = 'Đã bật đồng bộ tự động mỗi ' + cfg.intervalMin + ' phút.';
   Logger.log(msg);
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* trình soạn thảo */ }
 }
