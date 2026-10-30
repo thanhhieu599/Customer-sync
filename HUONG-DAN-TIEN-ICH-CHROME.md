@@ -140,13 +140,16 @@ khung xanh **"Khách hàng từ Sapo Omni"** bên trái ô tìm kiếm (không c
 | Thao tác | Kết quả |
 |---|---|
 | Gõ tên (có dấu hoặc không dấu: `hung vuong`), SĐT (`0969…`, `+84 969…`, một phần số) hoặc email | Hiện tối đa 8 khách Omni khớp nhất, kèm SĐT, email, mã KH, số đơn |
-| Khách có nhãn xanh **"Đã có trên Web"** → bấm chọn | Tiện ích điền SĐT vào ô tìm kiếm → Sapo hiện đúng khách đó → bấm chọn như bình thường |
-| Khách có nhãn vàng **"Chưa có trên Web"** → bấm chọn → xác nhận | Tiện ích tạo khách trên Sapo Web từ dữ liệu Omni (tên, SĐT, email, địa chỉ), ghi vào bảng ghép, rồi điền SĐT để chọn. Nếu Sapo chưa hiện ngay, gõ lại SĐT sau vài giây |
+| Khách có nhãn xanh **"Đã có trên Web"** → bấm chọn | Tiện ích **tự chọn khách đó vào đơn** (điền SĐT → bấm đúng dòng khách trong danh sách của Sapo) |
+| Khách có nhãn vàng **"Chưa có trên Web"** → bấm chọn | Tiện ích **tự tạo khách trên Sapo Web** từ dữ liệu Omni (tên, SĐT, email, địa chỉ), chờ Sapo cập nhật vài giây rồi **tự chọn vào đơn**. Đơn sau đó về Omni sẽ được chuyển về đúng hồ sơ gốc |
 | Phím ↑ ↓ và Enter | Chọn bằng bàn phím |
 
 - Tìm kiếm dùng **bản sao danh sách Omni trong máy** → gõ phím **không gửi lệnh nào tới Omni**. Khách mới tạo trên Omni
   xuất hiện trong gợi ý sau lượt đồng bộ kế tiếp (tối đa ~10 phút).
 - Khách Omni **chưa có SĐT hoặc email** sẽ không được tạo lên Web (tránh tạo trùng) – bổ sung trên Omni trước.
+- Tiện ích chỉ bấm vào dòng nằm ngay dưới ô tìm kiếm và chứa đúng SĐT / email / tên khách; **không bao giờ bấm "Thêm mới khách hàng"**.
+  Không tự chọn được (hiếm) → khung báo đỏ, gõ SĐT vào ô tìm kiếm và chọn tay.
+- Tắt tính năng tự tạo: Cài đặt → *Chọn khách chỉ có trên Omni trong ô gợi ý* → **Chỉ hướng dẫn**.
 - Tính năng này hoạt động trên **mọi máy cài tiện ích** (máy của sale), nhưng bản sao danh sách Omni chỉ có ở máy đã
   quét / đồng bộ. Máy sale cần: cài tiện ích, nhập cấu hình, đăng nhập Omni, bấm **Quét toàn bộ ngay** 1 lần (ngoài giờ),
   **không cần bật tự động** (để máy đồng bộ chính lo việc đó).

@@ -24,6 +24,7 @@ var DEFAULT_CONFIG = {
   fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6, notifyChanges: true,
   syncCustomers: false,           // false = CHỈ GHÉP khách (không tạo / không sửa khách ở bên nào)
   fixOrders: true,                // chuyển đơn từ Sapo Web về đúng khách gốc trên Omni
+  createOnPick: true,             // chọn khách CHỈ có trên Omni trong ô gợi ý → tự tạo khách đó trên Sapo Web
   orderWindowHours: 24,           // chỉ xét đơn tạo trong N giờ gần nhất
   webSourceIds: '1126437'         // mã nguồn đơn Sapo Web trên Omni (kiểm chứng trên đơn SON06378)
 };
@@ -554,10 +555,12 @@ function searchOmniCache(cache, rows, q, limit) {
 
 /** Người dùng chọn 1 khách Omni chưa có trên Web → tạo khách đó trên Sapo Web và ghi vào bảng ghép */
 async function pushOmniToWeb(omniId) {
-  if ((await getConfig()).syncCustomers !== true) {
-    return { ok: false, error: 'Đang tắt đẩy khách giữa Omni và Web (chế độ chỉ ghép). Tạo khách bằng nút "Thêm mới khách hàng" của Sapo Web.' };
+  if ((await getConfig()).createOnPick === false) {
+    return { ok: false, error: 'Đang tắt "Tạo khách lên Web khi chọn trong ô gợi ý". Bật trong Cài đặt, hoặc tạo bằng nút "Thêm mới khách hàng" của Sapo Web.' };
   }
-  if (!(await acquireLock())) return { ok: false, error: 'Tiện ích đang đồng bộ, thử lại sau vài giây.' };
+  // Đang có lượt đồng bộ chạy: vẫn tạo khách ngay (người dùng đang chờ), chỉ không ghi bảng ghép
+  // để khỏi tranh ghi với lượt đang chạy – lượt sau tự ghép lại theo SĐT/email.
+  var locked = await acquireLock();
   try {
     var cfg = await getConfig();
     validateConfig(cfg);
@@ -579,14 +582,14 @@ async function pushOmniToWeb(omniId) {
     rows.push({ omni_id: o.id, web_id: String(r.id), status: 'pair', hash_o: SyncCore.hashOf(o), hash_w: SyncCore.hashOf(w),
                 linked_at: now, first_seen: '', omni_code: o.code, name: o.name, phone: o.phone,
                 note: 'tạo trên Web từ ô tìm kiếm', updated_at: now });
-    await chrome.storage.local.set({ rows: rows, cache: cache });
+    if (locked) await chrome.storage.local.set({ rows: rows, cache: cache });
     await appendLog([{ time: now, level: 'INFO', action: 'Tạo khách trên Web (từ ô tìm kiếm)', omni_id: o.id,
                        web_id: String(r.id), name: o.name, detail: (o.phone || '') + ' ' + (o.email || '') }]);
     return { ok: true, created: true, web_id: String(r.id), phone: r.phone || w.phone || o.phone, email: w.email || o.email };
   } catch (e) {
     return { ok: false, error: e.message };
   } finally {
-    await releaseLock();
+    if (locked) await releaseLock();
   }
 }
 
@@ -618,7 +621,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         var cache = await loadCache();
         var rows = (await chrome.storage.local.get('rows')).rows || [];
         return { ok: true, ready: !!cache.lastFullAt, lastFullAt: cache.lastFullAt,
-                 canCreate: (await getConfig()).syncCustomers === true,
+                 canCreate: (await getConfig()).createOnPick !== false,
                  items: searchOmniCache(cache, rows, msg.q, msg.limit || 8) };
       }
       case 'pushOmniToWeb': return pushOmniToWeb(String(msg.omniId));

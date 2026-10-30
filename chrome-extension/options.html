@@ -33,7 +33,10 @@
         <select id="fixOrders"><option value="true">BẬT (khuyến nghị)</option><option value="false">TẮT</option></select>
         <div class="hint">Đơn Web về Omni bị gắn vào bản trùng (tag "Web") → tự chuyển về hồ sơ khách gốc cùng SĐT/email.
           Ở chế độ CHẠY THỬ chỉ ghi nhật ký "Sẽ chuyển…".</div>
-        <label for="syncCustomers">Đẩy / cập nhật khách giữa Omni và Web</label>
+        <label for="createOnPick">Chọn khách chỉ có trên Omni trong ô gợi ý</label>
+        <select id="createOnPick"><option value="true">Tự tạo khách đó trên Sapo Web và chọn vào đơn (khuyến nghị)</option>
+                                  <option value="false">Chỉ hướng dẫn, không tự tạo</option></select>
+        <label for="syncCustomers">Đẩy / cập nhật khách HÀNG LOẠT giữa Omni và Web</label>
         <select id="syncCustomers"><option value="false">KHÔNG – chỉ ghép khách (khuyến nghị)</option>
                                    <option value="true">CÓ – tạo / sửa khách ở cả 2 bên</option></select>
         <div class="hint">Chỉ ghép: tiện ích ghi nhận khách Web nào là khách nào trên Omni, không tạo hay sửa khách.</div>

@@ -57,8 +57,12 @@
     return h;
   }
 
+  var hideTimer = null;
   function showMessage(text, kind) {
     ensurePanel();
+    clearTimeout(hideTimer);
+    // Chọn khách thành công → tự đóng khung sau 3 giây cho gọn
+    if (kind === 'ok' && /^Đã (tạo và )?chọn/.test(text)) hideTimer = setTimeout(hide, 3000);
     panel.textContent = '';
     panel.appendChild(header('D&T Sapo Sync'));
     panel.appendChild(el('div', 'dt-omni-msg' + (kind ? ' dt-' + kind : ''), text));
@@ -106,13 +110,77 @@
     });
   }
 
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function digits(x) { return String(x || '').replace(/\D/g, ''); }
+  function fold(x) {
+    return String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+  function visible(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+  }
+
+  /**
+   * Tìm dòng khách trong danh sách gợi ý CỦA SAPO (ngay dưới ô tìm kiếm) khớp đúng khách cần chọn.
+   * Khớp theo 9 số cuối SĐT (+84 hay 0 đều được), hoặc email, hoặc tên. Không bao giờ chọn "Thêm mới khách hàng".
+   */
+  function findSapoOption(target) {
+    var ir = input.getBoundingClientRect();
+    var phone9 = digits(target.phone).slice(-9), email = fold(target.email), name = fold(target.name);
+    var best = null, bestLen = 1e9;
+    var nodes = document.querySelectorAll('li, a, div, [role="option"], tr');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (panel && panel.contains(el)) continue;
+      if (el.contains(input) || el === input) continue;
+      var txt = el.textContent || '';
+      if (txt.length > 300 || !txt.trim()) continue;
+      if (/thêm mới khách hàng|them moi khach hang/i.test(txt)) continue;
+      var r = el.getBoundingClientRect();
+      if (r.top < ir.bottom - 4 || r.top > ir.bottom + 650 || r.right < ir.left - 60 || r.left > ir.right + 60) continue;
+      if (!visible(el)) continue;
+      var t = fold(txt), d = digits(txt);
+      var hit = (phone9.length === 9 && d.indexOf(phone9) >= 0) || (email && t.indexOf(email) >= 0) ||
+                (name && name.length >= 4 && t.indexOf(name) >= 0);
+      if (!hit) continue;
+      if (txt.length < bestLen) { best = el; bestLen = txt.length; }   // phần tử nhỏ nhất chứa đúng khách
+    }
+    if (!best) return null;
+    return best.closest('li, a, [role="option"], tr, .item, [class*="item"], [class*="option"]') || best;
+  }
+
+  function clickEl(el) {
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function (t) {
+      var Ev = t.indexOf('pointer') === 0 && typeof PointerEvent !== 'undefined' ? PointerEvent : MouseEvent;
+      el.dispatchEvent(new Ev(t, { bubbles: true, cancelable: true, view: window }));
+    });
+  }
+
+  /** Điền lần lượt SĐT → email → tên vào ô tìm kiếm của Sapo, thấy đúng khách trong danh sách thì bấm chọn */
+  async function autoSelect(target, queries) {
+    var tries = queries.filter(Boolean);
+    for (var q = 0; q < tries.length; q++) {
+      for (var round = 0; round < 2; round++) {          // khách vừa tạo: Sapo cần vài giây để tìm được
+        typeIntoSapo(tries[q]);
+        for (var k = 0; k < 10; k++) {
+          await wait(300);
+          var el = findSapoOption(target);
+          if (el) { clickEl(el); return tries[q]; }
+        }
+      }
+    }
+    return null;
+  }
+
   async function choose(i) {
     var it = items[i];
     if (!it) return;
+    var target = { name: it.name, phone: it.web_phone || it.phone, email: it.web_email || it.email };
     if (it.web_id) {
-      typeIntoSapo(it.web_phone || it.phone || it.web_email || it.email);
-      showMessage('Đã điền "' + (it.web_phone || it.phone || it.web_email || it.email) + '" – chọn "' + it.name +
-                  '" trong danh sách của Sapo ngay bên phải.', 'ok');
+      showMessage('Đang chọn "' + it.name + '"…');
+      var used = await autoSelect(target, [it.web_phone || it.phone, it.web_email || it.email, it.name]);
+      showMessage(used ? 'Đã chọn "' + it.name + '" cho đơn hàng.'
+                       : 'Đã điền thông tin – chọn "' + it.name + '" trong danh sách của Sapo ngay bên phải.', used ? 'ok' : null);
       return;
     }
     if (!canCreate) {
@@ -121,16 +189,16 @@
       return;
     }
     if (!it.phone && !it.email) { showMessage('Khách này chưa có SĐT hoặc email trên Omni. Bổ sung trên Omni trước để tránh tạo trùng.', 'err'); return; }
-    if (!confirm('Tạo khách "' + it.name + '" trên Sapo Web từ dữ liệu Sapo Omni?\n\n' +
-                 [it.phone, it.email, it.address].filter(Boolean).join('\n'))) return;
-    showMessage('Đang tạo khách trên Sapo Web…');
+    showMessage('Đang tạo "' + it.name + '" trên Sapo Web từ dữ liệu Omni…');
     var r = await send({ cmd: 'pushOmniToWeb', omniId: it.omni_id });
     if (!r.ok) { showMessage('Không tạo được: ' + r.error, 'err'); return; }
-    var key = r.phone || r.email;
-    // Chờ Sapo cập nhật chỉ mục tìm kiếm một chút rồi mới điền
-    setTimeout(function () { typeIntoSapo(key); }, 1200);
-    showMessage((r.created ? 'Đã tạo' : 'Đã có sẵn') + ' khách "' + it.name + '" trên Sapo Web. Đang điền "' + key +
-                '" – chọn khách trong danh sách của Sapo. (Nếu chưa hiện, gõ lại SĐT sau vài giây.)', 'ok');
+    target.phone = r.phone || it.phone; target.email = r.email || it.email;
+    showMessage((r.created ? 'Đã tạo' : 'Đã có sẵn') + ' "' + it.name + '" trên Sapo Web. Đang chọn vào đơn…', 'ok');
+    await wait(800);                                    // chờ Sapo cập nhật tìm kiếm cho khách vừa tạo
+    var used2 = await autoSelect(target, [target.phone, target.email, it.name]);
+    showMessage(used2 ? (r.created ? 'Đã tạo và chọn' : 'Đã chọn') + ' "' + it.name + '" cho đơn hàng.'
+                      : (r.created ? 'Đã tạo' : 'Đã có sẵn') + ' "' + it.name + '" trên Sapo Web nhưng chưa tự chọn được – ' +
+                        'gõ SĐT ' + (target.phone || '') + ' vào ô tìm kiếm và chọn khách.', used2 ? 'ok' : 'err');
   }
 
   async function search() {

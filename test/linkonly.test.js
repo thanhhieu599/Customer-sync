@@ -56,17 +56,51 @@ test('chỉ ghép: sửa khách ở 1 bên → KHÔNG đẩy sang bên kia', asy
   assert.deepStrictEqual(writes(ext.web), []);
 });
 
-test('chỉ ghép: ô gợi ý không tự tạo khách lên Web, hướng dẫn dùng nút của Sapo', async () => {
+test('chỉ ghép + chọn trong ô gợi ý: khách chỉ có trên Omni → tự tạo đúng 1 khách đó trên Web (không đẩy hàng loạt)', async () => {
   const { ext, onlyOmni } = await realData();
   await ext.run();
   const s = await ext.send({ cmd: 'searchOmni', q: 'khach quay' });
-  assert.strictEqual(s.canCreate, false);
+  assert.strictEqual(s.canCreate, true, 'mặc định cho phép tạo khi người dùng bấm chọn');
   assert.strictEqual(s.items[0].omni_id, String(onlyOmni.id));
   const size = ext.web.db.size;
   const r = await ext.send({ cmd: 'pushOmniToWeb', omniId: onlyOmni.id });
+  assert.ok(r.ok && r.created, r.error);
+  assert.strictEqual(ext.web.db.size, size + 1, 'chỉ tạo đúng 1 khách được chọn');
+  assert.strictEqual(ext.web.db.get(Number(r.web_id)).phone, '0911000222');
+  // Lượt đồng bộ chỉ ghép sau đó: không tạo thêm gì, không sửa gì
+  ext.web.calls.length = 0; ext.omni.calls.length = 0;
+  ext.connector.run();
+  await ext.run();
+  assert.deepStrictEqual(writes(ext.web), []);
+  assert.ok(!writes(ext.omni).some(c => /customers/.test(c)), 'không ghi khách lên Omni');
+});
+
+test('chỉ ghép + TẮT "tạo khi chọn": ô gợi ý không tạo khách, hướng dẫn dùng nút của Sapo', async () => {
+  const { ext, onlyOmni } = await realData();
+  await ext.configure({ syncCustomers: false, createOnPick: false });
+  await ext.run();
+  const s = await ext.send({ cmd: 'searchOmni', q: 'khach quay' });
+  assert.strictEqual(s.canCreate, false);
+  const size = ext.web.db.size;
+  const r = await ext.send({ cmd: 'pushOmniToWeb', omniId: onlyOmni.id });
   assert.strictEqual(r.ok, false);
-  assert.match(r.error, /chỉ ghép/);
+  assert.match(r.error, /Tạo khách lên Web khi chọn/);
   assert.strictEqual(ext.web.db.size, size);
+});
+
+test('tạo khi chọn trong lúc tiện ích đang đồng bộ → vẫn tạo ngay, lượt sau tự ghép lại, không trùng', async () => {
+  const { ext, onlyOmni } = await realData();
+  await ext.run();
+  ext.state.store.lock = Date.now();                 // giả lập đang có lượt đồng bộ chạy
+  const r = await ext.send({ cmd: 'pushOmniToWeb', omniId: onlyOmni.id });
+  assert.ok(r.ok && r.created, r.error);
+  assert.ok(ext.state.store.lock, 'không nhả khóa của lượt đang chạy');
+  delete ext.state.store.lock;
+  const size = ext.web.db.size;
+  ext.connector.run();
+  await ext.run();
+  assert.ok(ext.rows().some(x => x.status === 'pair' && x.omni_id === String(onlyOmni.id) && x.web_id === r.web_id), 'lượt sau tự ghép');
+  assert.strictEqual(ext.web.db.size, size, 'không tạo trùng');
 });
 
 test('chỉ ghép: khách Web chưa có trên Omni → để nguyên, không bao giờ tạo sang Omni', async () => {

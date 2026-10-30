@@ -1,4 +1,4 @@
-var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'fixOrders', 'syncCustomers', 'dryRun', 'maxCreate', 'intervalMin', 'fullScanHour',
+var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'fixOrders', 'createOnPick', 'syncCustomers', 'dryRun', 'maxCreate', 'intervalMin', 'fullScanHour',
               'skipOmniGroupIds', 'pendingTimeoutMin', 'deleteEcho', 'alertWebhook'];
 (function () {
   var sel = document.getElementById('fullScanHour');
@@ -24,7 +24,7 @@ document.querySelectorAll('[data-tab]').forEach(function (b) {
 // ---- Cài đặt ----
 async function loadConfig() {
   var cfg = (await chrome.storage.local.get('config')).config || {};
-  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', fixOrders: true, syncCustomers: false, dryRun: true, maxCreate: 10, intervalMin: 10, fullScanHour: 2, pendingTimeoutMin: 30, deleteEcho: false };
+  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', fixOrders: true, createOnPick: true, syncCustomers: false, dryRun: true, maxCreate: 10, intervalMin: 10, fullScanHour: 2, pendingTimeoutMin: 30, deleteEcho: false };
   FIELDS.forEach(function (f) { var v = cfg[f] != null ? cfg[f] : d[f]; $(f).value = v == null ? '' : String(v); });
 }
 function readForm() {
@@ -32,7 +32,7 @@ function readForm() {
   FIELDS.forEach(function (f) { c[f] = $(f).value.trim(); });
   c.webBase = c.webBase.replace(/\/admin.*$/, '').replace(/\/+$/, '');
   c.omniBase = c.omniBase.replace(/\/admin.*$/, '').replace(/\/+$/, '');
-  c.dryRun = c.dryRun === 'true'; c.deleteEcho = c.deleteEcho === 'true'; c.syncCustomers = c.syncCustomers === 'true'; c.fixOrders = c.fixOrders !== 'false';
+  c.dryRun = c.dryRun === 'true'; c.deleteEcho = c.deleteEcho === 'true'; c.syncCustomers = c.syncCustomers === 'true'; c.fixOrders = c.fixOrders !== 'false'; c.createOnPick = c.createOnPick !== 'false';
   c.maxCreate = Number(c.maxCreate) || 0; c.intervalMin = Number(c.intervalMin) || 10;
   c.pendingTimeoutMin = Number(c.pendingTimeoutMin) || 30;
   c.fullScanHour = Number(c.fullScanHour);
