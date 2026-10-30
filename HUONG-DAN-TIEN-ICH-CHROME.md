@@ -80,7 +80,31 @@ và chuyển sang **quét toàn bộ mỗi 6 giờ** thay vì mỗi 10 phút.
 | **4. Mở rộng** | Tạo tối đa **100** → chạy vài lần | Dòng tóm tắt: `tạo trên Web: 0`, `để lượt sau: 0` |
 | **5. Tự động** | Popup → **Bật tự động** | Biểu tượng không có dấu = tốt. Theo dõi nhật ký 2–3 ngày đầu |
 
-## 5. Đọc popup (bấm biểu tượng tiện ích)
+## 5. Gợi ý khách Omni ngay khi tạo đơn trên Sapo Web (từ phiên bản 1.3)
+
+Trên trang **Tạo đơn hàng / Đơn hàng nháp** của Sapo Web, khi gõ vào ô **"Tìm kiếm khách hàng…"**, tiện ích hiện thêm
+khung xanh **"Khách hàng từ Sapo Omni"** bên trái ô tìm kiếm (không che danh sách gợi ý của Sapo).
+
+| Thao tác | Kết quả |
+|---|---|
+| Gõ tên (có dấu hoặc không dấu: `hung vuong`), SĐT (`0969…`, `+84 969…`, một phần số) hoặc email | Hiện tối đa 8 khách Omni khớp nhất, kèm SĐT, email, mã KH, số đơn |
+| Khách có nhãn xanh **"Đã có trên Web"** → bấm chọn | Tiện ích điền SĐT vào ô tìm kiếm → Sapo hiện đúng khách đó → bấm chọn như bình thường |
+| Khách có nhãn vàng **"Chưa có trên Web"** → bấm chọn → xác nhận | Tiện ích tạo khách trên Sapo Web từ dữ liệu Omni (tên, SĐT, email, địa chỉ), ghi vào bảng ghép, rồi điền SĐT để chọn. Nếu Sapo chưa hiện ngay, gõ lại SĐT sau vài giây |
+| Phím ↑ ↓ và Enter | Chọn bằng bàn phím |
+
+- Tìm kiếm dùng **bản sao danh sách Omni trong máy** → gõ phím **không gửi lệnh nào tới Omni**. Khách mới tạo trên Omni
+  xuất hiện trong gợi ý sau lượt đồng bộ kế tiếp (tối đa ~10 phút).
+- Khách Omni **chưa có SĐT hoặc email** sẽ không được tạo lên Web (tránh tạo trùng) – bổ sung trên Omni trước.
+- Tính năng này hoạt động trên **mọi máy cài tiện ích** (máy của sale), nhưng bản sao danh sách Omni chỉ có ở máy đã
+  quét / đồng bộ. Máy sale cần: cài tiện ích, nhập cấu hình, đăng nhập Omni, bấm **Quét toàn bộ ngay** 1 lần (ngoài giờ),
+  **không cần bật tự động** (để máy đồng bộ chính lo việc đó).
+
+> ⚠️ **Lưu ý về đơn hàng bên Omni:** khi khách được tạo trên Sapo Web, bộ kết nối có sẵn của Sapo vẫn sinh một
+> "bản dội" bên Omni, và **đơn tạo trên Web sẽ về bản dội đó**, không về hồ sơ gốc. Tiện ích giúp **tìm và chọn khách
+> nhanh**, nhưng không thay đổi được cách bộ kết nối của Sapo gắn đơn. Muốn mọi đơn về đúng hồ sơ gốc: làm phép thử A
+> (README) để quyết định bật `Xóa bản dội`, hoặc tạo đơn B2B trực tiếp trên Omni.
+
+## 6. Đọc popup (bấm biểu tượng tiện ích)
 
 | Dòng | Ý nghĩa |
 |---|---|
@@ -96,7 +120,7 @@ Không có gì mới thì không làm phiền.
 > **Không thấy thông báo nào trên Windows?** Vào *Cài đặt Windows → Hệ thống → Thông báo* → bật cho **Google Chrome**,
 > và tắt chế độ *Không làm phiền / Hỗ trợ tập trung*.
 
-## 6. Đọc biểu tượng tiện ích
+## 7. Đọc biểu tượng tiện ích
 
 | Biểu tượng | Nghĩa | Cần làm |
 |---|---|---|
@@ -110,7 +134,7 @@ Không có gì mới thì không làm phiền.
 
 Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo trên màn hình** (tối đa 1 lần/giờ cho mỗi loại).
 
-## 7. (Tùy chọn) Nhận cảnh báo qua email
+## 8. (Tùy chọn) Nhận cảnh báo qua email
 
 1. Vào https://script.google.com → **Dự án mới** → dán đoạn dưới (sửa email) → **Ctrl + S**:
    ```javascript
@@ -123,7 +147,7 @@ Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo tr�
 2. **Triển khai → Triển khai mới → Loại: Ứng dụng web** → *Thực thi với tư cách*: **Tôi** → *Ai có quyền truy cập*: **Bất kỳ ai** → **Triển khai** → cấp quyền.
 3. Chép **URL ứng dụng web** (dạng `https://script.google.com/macros/s/.../exec`) → dán vào ô **Email cảnh báo** trong cài đặt tiện ích → Lưu.
 
-## 8. Vận hành & sự cố
+## 9. Vận hành & sự cố
 
 | Tình huống | Hệ thống xử lý | Anh/chị cần làm |
 |---|---|---|
@@ -141,7 +165,7 @@ Khi hết phiên đăng nhập hoặc có lỗi, Chrome hiện **thông báo tr�
 **Cập nhật phiên bản mới:** tải ZIP mới → giải nén **đè** vào đúng thư mục cũ → `chrome://extensions` → bấm **↻ Tải lại** ở tiện ích.
 Cài đặt, bảng ghép và nhật ký được giữ nguyên.
 
-## 9. Lưu ý
+## 10. Lưu ý
 
 - Đây là **giải pháp chuyển tiếp** dùng API nội bộ của Omni (giống giao diện Omni dùng). Khi Sapo cấp API chính thức
   (Enterprise API / API key Omni), chuyển sang bản Google Apps Script ([HUONG-DAN-TRIEN-KHAI.md](HUONG-DAN-TRIEN-KHAI.md)) –

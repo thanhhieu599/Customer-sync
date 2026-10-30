@@ -39,7 +39,7 @@ test('lượt đầu: ghép đúng, tạo khách còn thiếu, nhận diện b�
   assert.strictEqual(intelWeb.email, 'purchasing@intel.example');
   assert.doesNotMatch(intelWeb.tags, /MST/, 'không còn đồng bộ MST');
   assert.match(intelWeb.tags, /omni:CUZN0/);
-  assert.strictEqual(intelWeb.phone, '+84281234567', 'SĐT gửi lên Web dạng +84');
+  assert.strictEqual(intelWeb.phone, '0281234567', 'SĐT gửi lên Web dạng 0… như dữ liệu Sapo Web hiện có');
 
   // Sapo dội Intel về Omni → lượt 2 phải nhận ra, không tạo thêm gì
   sys.connector.run();
@@ -60,6 +60,7 @@ test('lượt đầu: ghép đúng, tạo khách còn thiếu, nhận diện b�
 
 test('sửa trên Omni → cập nhật Web; sửa trên Web → cập nhật Omni; sau đó ổn định', () => {
   const sys = loadSystem();
+  sys.web.reformatPhone = true;            // Sapo Web tự đổi SĐT sang +84 sau khi lưu → không được ghi lặp
   const { O2, W2 } = seed(sys);
   sys.run(); sys.connector.run(); sys.run();
 

@@ -1,0 +1,18 @@
+/* Khung gợi ý khách Omni – tiền tố dt- để không đụng giao diện Sapo */
+.dt-omni-panel { position: fixed; z-index: 2147483000; width: 380px; max-height: 420px; overflow: auto;
+  background: #fff; color: #111827; border: 2px solid #2563eb; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.dt-omni-head { position: sticky; top: 0; background: #2563eb; color: #fff; padding: 7px 10px; font-weight: 600;
+  display: flex; justify-content: space-between; align-items: center; }
+.dt-omni-head small { font-weight: 400; opacity: .85; }
+.dt-omni-close { cursor: pointer; background: none; border: 0; color: #fff; font-size: 16px; line-height: 1; }
+.dt-omni-item { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; cursor: pointer; }
+.dt-omni-item:hover, .dt-omni-item.dt-active { background: #eff6ff; }
+.dt-omni-name { font-weight: 600; }
+.dt-omni-sub { color: #4b5563; font-size: 12px; }
+.dt-omni-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; margin-left: 6px; }
+.dt-omni-badge.dt-on { background: #dcfce7; color: #166534; }
+.dt-omni-badge.dt-off { background: #fef3c7; color: #92400e; }
+.dt-omni-msg { padding: 10px; color: #374151; }
+.dt-omni-msg.dt-err { color: #b91c1c; }
+.dt-omni-msg.dt-ok { color: #166534; font-weight: 600; }

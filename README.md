@@ -149,10 +149,11 @@ và **không ghi lặp khi dữ liệu đã ổn định**.
 | `apps-script/Core.js` | Lõi: chuẩn hóa, ghép, lập kế hoạch hành động (dùng chung) |
 | `apps-script/Engine.js` | Lõi: thực thi kế hoạch, kiểm tra an toàn, tóm tắt (dùng chung) |
 | `apps-script/Api.js`, `Store.js`, `Main.js` | Bản Apps Script: gọi API, lưu Google Sheet, menu, hẹn giờ |
-| `chrome-extension/` | Bản tiện ích Chrome: `clients.js` (cổng Omni qua tab + cổng Web), `background.js`, giao diện |
+| `chrome-extension/` | Bản tiện ích Chrome: `clients.js` (cổng Omni qua tab + cổng Web), `background.js`, giao diện, `content.js` (gợi ý khách Omni trên trang Sapo Web) |
 | `dist/Code.gs`, `chrome-extension/lib/` | **Tự sinh** bằng `npm run build`, không sửa tay |
 | `test/sync.test.js` | 18 kịch bản nghiệp vụ |
 | `test/scale.test.js` | Mô phỏng 2.500 khách Omni + 400 khách Web |
 | `test/deploy.test.js` | Tệp gộp `dist/Code.gs`, kiểm tra kết nối khi mới có key Web |
 | `test/extension.test.js` | 14 kịch bản tiện ích Chrome (tab Omni, hết phiên, tab ngủ đông/treo, lịch chạy, thông báo, chạy chồng…) |
+| `test/suggest.test.js` | 9 kịch bản gợi ý khách Omni trong ô tìm kiếm Sapo Web và tạo khách lên Web |
 | `test/protect.test.js` | 9 kịch bản bảo vệ Sapo Omni (chỉ đọc thay đổi, giãn cách 1,5 giây, quá tải → tạm nghỉ, trần lệnh ghi…) |

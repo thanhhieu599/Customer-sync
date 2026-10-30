@@ -93,8 +93,8 @@ function makeServer(kind) {
           });
           if (kind === 'web') rec.default_address = rec.addresses[0];
         }
-        // Sapo Web lưu SĐT dạng +84 → kiểm tra hệ thống chịu được việc định dạng lại
-        if (kind === 'web' && rec.phone && rec.phone.startsWith('0')) rec.phone = '+84' + rec.phone.slice(1);
+        // Kiểm tra hệ thống chịu được việc Sapo tự định dạng lại SĐT (bật bằng srv.reformatPhone)
+        if (kind === 'web' && srv.reformatPhone && rec.phone && rec.phone.startsWith('0')) rec.phone = '+84' + rec.phone.slice(1);
         rec.modified_on = tick();
         return [200, JSON.stringify({ customer: rec })];
       }

@@ -2,14 +2,53 @@
   "manifest_version": 3,
   "name": "D&T Sapo Sync – Đồng bộ khách hàng Omni ↔ Web",
   "short_name": "D&T Sapo Sync",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Đồng bộ khách hàng 2 chiều giữa Sapo Omni và Sapo Web cho D&T (trangthietbi.vn).",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "unlimitedStorage", "alarms", "scripting", "tabs", "notifications"],
-  "host_permissions": ["https://*.mysapogo.com/*", "https://*.mysapo.net/*", "https://script.google.com/*", "https://script.googleusercontent.com/*"],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_popup": "popup.html", "default_title": "D&T Sapo Sync",
-              "default_icon": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" } },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "alarms",
+    "scripting",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://*.mysapogo.com/*",
+    "https://*.mysapo.net/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "D&T Sapo Sync",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
   "options_page": "options.html",
-  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" }
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.mysapo.net/admin/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

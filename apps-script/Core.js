@@ -361,9 +361,13 @@ var SyncCore = (function () {
     return keep.join(', ');
   }
 
-  /** Bản chuẩn (nguồn) → payload Sapo Web. existing = bản Web hiện có (khi cập nhật) */
+  /**
+   * Bản chuẩn (nguồn) → payload Sapo Web. existing = bản Web hiện có (khi cập nhật).
+   * SĐT gửi dạng 0xxxxxxxxx – đúng định dạng khách hiện có trên Sapo Web của D&T (vd. 0918826446),
+   * để ô tìm kiếm khách của Sapo Web tìm được bằng SĐT quen thuộc.
+   */
   function toWebPayload(src, existing) {
-    var phone = intlPhone(src.phone);
+    var phone = normPhone(src.phone);
     var c = {
       first_name: src.name,
       last_name: '',
