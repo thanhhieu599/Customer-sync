@@ -8,7 +8,7 @@
   window.__dtOmniSuggest = true;
 
   var SELECTOR = 'input[placeholder*="m kiếm khách hàng"], input[placeholder*="m kiem khach hang"]';
-  var panel = null, input = null, items = [], active = -1, timer = null, seq = 0;
+  var panel = null, input = null, items = [], active = -1, timer = null, seq = 0, canCreate = false;
 
   function send(msg) {
     return new Promise(function (res) {
@@ -115,6 +115,11 @@
                   '" trong danh sách của Sapo ngay bên phải.', 'ok');
       return;
     }
+    if (!canCreate) {
+      showMessage('"' + it.name + '" chưa có trên Sapo Web. Bấm "Thêm mới khách hàng" của Sapo và nhập SĐT ' +
+                  (it.phone || '(chưa có)') + (it.email ? ', email ' + it.email : '') + ' giống trên Omni.', 'err');
+      return;
+    }
     if (!it.phone && !it.email) { showMessage('Khách này chưa có SĐT hoặc email trên Omni. Bổ sung trên Omni trước để tránh tạo trùng.', 'err'); return; }
     if (!confirm('Tạo khách "' + it.name + '" trên Sapo Web từ dữ liệu Sapo Omni?\n\n' +
                  [it.phone, it.email, it.address].filter(Boolean).join('\n'))) return;
@@ -135,6 +140,7 @@
     var r = await send({ cmd: 'searchOmni', q: q, limit: 8 });
     if (my !== seq) return;                       // đã gõ tiếp, bỏ kết quả cũ
     if (!r.ok) { showMessage(r.error, 'err'); return; }
+    canCreate = !!r.canCreate;
     if (!r.ready) { showMessage('Chưa có danh sách khách Omni. Mở tiện ích D&T Sapo Sync → Cài đặt → "Quét toàn bộ ngay".', 'err'); return; }
     render(r.items, q);
   }

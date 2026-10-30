@@ -178,7 +178,7 @@ function loadSystem(opts) {
   const props = Object.assign({
     WEB_BASE_URL: 'https://dt.mysapo.net', WEB_API_KEY: 'k', WEB_API_SECRET: 's',
     OMNI_BASE_URL: 'https://trangthietbivn.mysapogo.com', OMNI_API_KEY: 'k2', OMNI_API_SECRET: 's2',
-    DRY_RUN: 'false', MAX_CREATE_PER_RUN: '50', DELETE_ECHO: 'false', PENDING_WEB_TIMEOUT_MIN: '30'
+    DRY_RUN: 'false', MAX_CREATE_PER_RUN: '50', DELETE_ECHO: 'false', PENDING_WEB_TIMEOUT_MIN: '30', SYNC_CUSTOMERS: 'true'
   }, (opts && opts.props) || {});
   const mails = [];
   const ctx = {

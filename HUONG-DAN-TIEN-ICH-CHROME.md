@@ -8,6 +8,17 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 
 ---
 
+## Chế độ mặc định: CHỈ GHÉP khách (từ phiên bản 1.5)
+
+Mục tiêu của D&T: **đơn tạo trên Sapo Web phải về đúng hồ sơ khách gốc trên Omni** – không đẩy khách qua lại.
+Vì vậy mặc định tiện ích **không tạo, không sửa khách ở bên nào**, chỉ ghi nhận *"khách Web này là khách gốc nào trên Omni"*:
+
+- Ghép theo **SĐT đã quy về một dạng** (Sapo Web lưu `+84983503360`, Omni lưu `0983503360` → coi là một) rồi đến **email**.
+- Khi một SĐT/email có nhiều hồ sơ trên Omni (hồ sơ gốc + bản trùng do Sapo tự sinh), chọn **hồ sơ gốc** (nhiều đơn hơn, tạo sớm hơn).
+- Bảng ghép này là nền để bước tiếp theo **tự chuyển đơn từ Web về đúng khách gốc trên Omni**.
+
+Muốn bật lại việc tạo/sửa khách 2 bên: Cài đặt → *Đẩy / cập nhật khách giữa Omni và Web* → **CÓ**.
+
 ## Cách tiện ích bảo vệ Sapo Omni (từ phiên bản 1.1)
 
 Sau sự cố Omni chậm/sập tạm thời khi chạy thử bản 1.0 (bản cũ đọc lại toàn bộ khách mỗi lượt, dồn ~3 lệnh/giây),

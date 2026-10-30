@@ -185,7 +185,8 @@ var SyncCore = (function () {
     var pendingByWeb = {};
     var pairIndex = {};      // khóa → thông tin cặp đã ghép (để nhận diện bản dội / bản trùng)
     var actions = [];
-    var stats = { pairs: 0, unchanged: 0, o2w: 0, w2o: 0, conflicts: 0, linked: 0,
+    var linkOnly = !!cfg.linkOnly;   // CHỈ GHÉP: không tạo / không sửa khách ở bên nào
+    var stats = { webOnly: 0, omniOnly: 0, pairs: 0, unchanged: 0, o2w: 0, w2o: 0, conflicts: 0, linked: 0,
                   createdWeb: 0, createdOmni: 0, echoes: 0, dups: 0, pending: 0,
                   orphans: 0, skipped: 0, deferred: 0 };
     var budget = maxCreate;
@@ -223,7 +224,7 @@ var SyncCore = (function () {
         // kể cả khi Sapo tự định dạng lại dữ liệu sau khi ghi.
         var oChanged = ho !== row.hash_o, wChanged = hw !== row.hash_w;
         if (!oChanged && !wChanged) { stats.unchanged++; return; }
-        if (ho === hw) {
+        if (ho === hw || linkOnly) {
           stats.unchanged++;
           actions.push({ type: 'set_hash', omni_id: o.id, web_id: w.id, hash_o: ho, hash_w: hw });
           return;
@@ -293,8 +294,8 @@ var SyncCore = (function () {
         stats.linked++;
         var merged = mergeForLink(o, w);
         actions.push({ type: 'link', omni: o, web: w, merged: merged,
-                       pushWeb: hashOf(merged) !== hashOf(w),
-                       pushOmni: hashOf(merged) !== hashOf(o) });
+                       pushWeb: !linkOnly && hashOf(merged) !== hashOf(w),
+                       pushOmni: !linkOnly && hashOf(merged) !== hashOf(o) });
         return;
       }
       // Trùng với một cặp đã có (2 tài khoản Web cùng SĐT/email)
@@ -306,6 +307,7 @@ var SyncCore = (function () {
         }
       }
       if (!keys.length) { stats.skipped++; return; }
+      if (linkOnly) { stats.webOnly++; return; }        // khách chỉ có trên Web: để nguyên, không tạo sang Omni
       var pend = pendingByWeb[w.id];
       if (!pend) {
         stats.pending++;
@@ -341,6 +343,7 @@ var SyncCore = (function () {
           return;
         }
       }
+      if (linkOnly) { stats.omniOnly++; return; }       // khách chỉ có trên Omni: để nguyên, không đẩy lên Web
       if (!o.active || skipGroups[o.groupId]) { stats.skipped++; return; }
       if (budget <= 0) { stats.deferred++; return; }
       budget--; stats.createdWeb++;

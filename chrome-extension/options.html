@@ -29,6 +29,10 @@
       </div>
       <div>
         <h2>Cách chạy</h2>
+        <label for="syncCustomers">Đẩy / cập nhật khách giữa Omni và Web</label>
+        <select id="syncCustomers"><option value="false">KHÔNG – chỉ ghép khách (khuyến nghị)</option>
+                                   <option value="true">CÓ – tạo / sửa khách ở cả 2 bên</option></select>
+        <div class="hint">Chỉ ghép: tiện ích ghi nhận khách Web nào là khách nào trên Omni, không tạo hay sửa khách.</div>
         <label for="dryRun">Chế độ</label>
         <select id="dryRun"><option value="true">CHẠY THỬ – chỉ ghi nhật ký, không sửa dữ liệu</option>
                             <option value="false">CHẠY THẬT – ghi dữ liệu lên Sapo</option></select>

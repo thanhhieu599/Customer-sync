@@ -21,7 +21,8 @@ var DEFAULT_CONFIG = {
   omniBase: 'https://trangthietbivn.mysapogo.com',
   dryRun: true, maxCreate: 10, pendingTimeoutMin: 30, deleteEcho: false,
   skipOmniGroupIds: '', intervalMin: 10, enabled: false, alertWebhook: '',
-  fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6, notifyChanges: true
+  fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6, notifyChanges: true,
+  syncCustomers: false            // false = CHỈ GHÉP khách (không tạo / không sửa khách ở bên nào)
 };
 
 // ---------- Cấu hình ----------
@@ -35,7 +36,8 @@ function engineCfg(cfg) {
     dryRun: !!cfg.dryRun,
     maxCreate: Number(cfg.maxCreate) || 0,
     pendingTimeoutMin: Number(cfg.pendingTimeoutMin) || 30,
-    deleteEcho: !!cfg.deleteEcho,
+    deleteEcho: !!cfg.deleteEcho && cfg.syncCustomers === true,
+    linkOnly: cfg.syncCustomers !== true,
     skipOmniGroupIds: String(cfg.skipOmniGroupIds || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean)
   };
 }
@@ -318,7 +320,7 @@ async function runSync(trigger) {
     if (done.errors) await alertUser('errors', 'Đồng bộ Sapo có ' + done.errors + ' lỗi', summary);
     else await chrome.storage.local.remove('lastAlert');
     var st = result.stats;
-    var changed = st.createdWeb + st.createdOmni + st.o2w + st.w2o + st.linked;
+    var changed = ecfg.linkOnly ? 0 : st.createdWeb + st.createdOmni + st.o2w + st.w2o + st.linked;
     if (!ecfg.dryRun && changed > 0 && cfg.notifyChanges !== false && !done.errors) {
       await notifyInfo('Đã đồng bộ ' + changed + ' khách hàng',
         'Tạo trên Web: ' + st.createdWeb + ' · Tạo trên Omni: ' + st.createdOmni + ' · Omni→Web: ' + st.o2w +
@@ -467,6 +469,9 @@ function searchOmniCache(cache, rows, q, limit) {
 
 /** Người dùng chọn 1 khách Omni chưa có trên Web → tạo khách đó trên Sapo Web và ghi vào bảng ghép */
 async function pushOmniToWeb(omniId) {
+  if ((await getConfig()).syncCustomers !== true) {
+    return { ok: false, error: 'Đang tắt đẩy khách giữa Omni và Web (chế độ chỉ ghép). Tạo khách bằng nút "Thêm mới khách hàng" của Sapo Web.' };
+  }
   if (!(await acquireLock())) return { ok: false, error: 'Tiện ích đang đồng bộ, thử lại sau vài giây.' };
   try {
     var cfg = await getConfig();
@@ -528,6 +533,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         var cache = await loadCache();
         var rows = (await chrome.storage.local.get('rows')).rows || [];
         return { ok: true, ready: !!cache.lastFullAt, lastFullAt: cache.lastFullAt,
+                 canCreate: (await getConfig()).syncCustomers === true,
                  items: searchOmniCache(cache, rows, msg.q, msg.limit || 8) };
       }
       case 'pushOmniToWeb': return pushOmniToWeb(String(msg.omniId));

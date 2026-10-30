@@ -32,6 +32,7 @@ function getConfig_(opts) {
     maxCreate: num(p.MAX_CREATE_PER_RUN, 10),
     pendingTimeoutMin: num(p.PENDING_WEB_TIMEOUT_MIN, 30),
     deleteEcho: bool(p.DELETE_ECHO, false),        // chỉ bật khi phép thử A đạt
+    linkOnly: !bool(p.SYNC_CUSTOMERS, false),      // mặc định CHỈ GHÉP khách, không tạo / không sửa
     skipOmniGroupIds: String(p.SKIP_OMNI_GROUP_IDS || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
     alertEmail: p.ALERT_EMAIL || '',
     intervalMin: num(p.SYNC_INTERVAL_MIN, 10)

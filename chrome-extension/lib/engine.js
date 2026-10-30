@@ -33,6 +33,13 @@ var SyncEngine = (function () {
   }
 
   function summary(cfg, omniCount, webCount, s, done, calls, seconds) {
+    if (cfg.linkOnly) {
+      return (cfg.dryRun ? '[CHẠY THỬ] ' : '') + '[CHỈ GHÉP] ' +
+        'Omni ' + omniCount + ' khách, Web ' + webCount + ' khách | đã ghép: ' + (s.pairs + s.linked) +
+        ' (mới: ' + s.linked + '), chỉ có trên Web: ' + s.webOnly + ', chỉ có trên Omni: ' + s.omniOnly +
+        ', bản dội: ' + s.echoes + ', bản trùng trên Omni: ' + s.dups + ', không có SĐT/email: ' + s.skipped +
+        ' | lỗi: ' + done.errors + ' | API: ' + calls + ' lệnh, ' + seconds + 's';
+    }
     return (cfg.dryRun ? '[CHẠY THỬ] ' : '') +
       'Omni ' + omniCount + ' khách, Web ' + webCount + ' khách | cặp: ' + s.pairs +
       ', Omni→Web: ' + s.o2w + ', Web→Omni: ' + s.w2o + ', xung đột: ' + s.conflicts +

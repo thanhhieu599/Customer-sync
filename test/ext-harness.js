@@ -117,7 +117,7 @@ function loadExtension(opts = {}) {
     /** Gửi lệnh như popup/trang cài đặt */
     send: msg => new Promise(res => { onMessage.ls[0](msg, {}, res); }),
     configure: async (cfg) => ext.send({ cmd: 'saveConfig', config: Object.assign(
-      { webBase: WEB, webKey: 'k', webSecret: 's', omniBase: OMNI, dryRun: false, maxCreate: 50 }, cfg) }),
+      { webBase: WEB, webKey: 'k', webSecret: 's', omniBase: OMNI, dryRun: false, maxCreate: 50, syncCustomers: true }, cfg) }),
     openOmniTab: () => { const t = { id: state.nextTab++, url: OMNI + '/admin/dashboard', status: 'complete', pinned: true }; state.tabs.push(t); return t; },
     fireAlarm: async () => { tick(60000); onAlarm.fire({ name: 'dt-sapo-sync' }); await new Promise(r => setTimeout(r, 50)); await ext.idle(); },
     run: async () => { tick(60000); const r = await ext.send({ cmd: 'runNow' }); tick(60000); return r; },

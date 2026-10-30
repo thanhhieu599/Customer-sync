@@ -191,7 +191,8 @@ var SyncCore = (function () {
     var pendingByWeb = {};
     var pairIndex = {};      // khóa → thông tin cặp đã ghép (để nhận diện bản dội / bản trùng)
     var actions = [];
-    var stats = { pairs: 0, unchanged: 0, o2w: 0, w2o: 0, conflicts: 0, linked: 0,
+    var linkOnly = !!cfg.linkOnly;   // CHỈ GHÉP: không tạo / không sửa khách ở bên nào
+    var stats = { webOnly: 0, omniOnly: 0, pairs: 0, unchanged: 0, o2w: 0, w2o: 0, conflicts: 0, linked: 0,
                   createdWeb: 0, createdOmni: 0, echoes: 0, dups: 0, pending: 0,
                   orphans: 0, skipped: 0, deferred: 0 };
     var budget = maxCreate;
@@ -229,7 +230,7 @@ var SyncCore = (function () {
         // kể cả khi Sapo tự định dạng lại dữ liệu sau khi ghi.
         var oChanged = ho !== row.hash_o, wChanged = hw !== row.hash_w;
         if (!oChanged && !wChanged) { stats.unchanged++; return; }
-        if (ho === hw) {
+        if (ho === hw || linkOnly) {
           stats.unchanged++;
           actions.push({ type: 'set_hash', omni_id: o.id, web_id: w.id, hash_o: ho, hash_w: hw });
           return;
@@ -299,8 +300,8 @@ var SyncCore = (function () {
         stats.linked++;
         var merged = mergeForLink(o, w);
         actions.push({ type: 'link', omni: o, web: w, merged: merged,
-                       pushWeb: hashOf(merged) !== hashOf(w),
-                       pushOmni: hashOf(merged) !== hashOf(o) });
+                       pushWeb: !linkOnly && hashOf(merged) !== hashOf(w),
+                       pushOmni: !linkOnly && hashOf(merged) !== hashOf(o) });
         return;
       }
       // Trùng với một cặp đã có (2 tài khoản Web cùng SĐT/email)
@@ -312,6 +313,7 @@ var SyncCore = (function () {
         }
       }
       if (!keys.length) { stats.skipped++; return; }
+      if (linkOnly) { stats.webOnly++; return; }        // khách chỉ có trên Web: để nguyên, không tạo sang Omni
       var pend = pendingByWeb[w.id];
       if (!pend) {
         stats.pending++;
@@ -347,6 +349,7 @@ var SyncCore = (function () {
           return;
         }
       }
+      if (linkOnly) { stats.omniOnly++; return; }       // khách chỉ có trên Omni: để nguyên, không đẩy lên Web
       if (!o.active || skipGroups[o.groupId]) { stats.skipped++; return; }
       if (budget <= 0) { stats.deferred++; return; }
       budget--; stats.createdWeb++;
@@ -458,6 +461,13 @@ var SyncEngine = (function () {
   }
 
   function summary(cfg, omniCount, webCount, s, done, calls, seconds) {
+    if (cfg.linkOnly) {
+      return (cfg.dryRun ? '[CHẠY THỬ] ' : '') + '[CHỈ GHÉP] ' +
+        'Omni ' + omniCount + ' khách, Web ' + webCount + ' khách | đã ghép: ' + (s.pairs + s.linked) +
+        ' (mới: ' + s.linked + '), chỉ có trên Web: ' + s.webOnly + ', chỉ có trên Omni: ' + s.omniOnly +
+        ', bản dội: ' + s.echoes + ', bản trùng trên Omni: ' + s.dups + ', không có SĐT/email: ' + s.skipped +
+        ' | lỗi: ' + done.errors + ' | API: ' + calls + ' lệnh, ' + seconds + 's';
+    }
     return (cfg.dryRun ? '[CHẠY THỬ] ' : '') +
       'Omni ' + omniCount + ' khách, Web ' + webCount + ' khách | cặp: ' + s.pairs +
       ', Omni→Web: ' + s.o2w + ', Web→Omni: ' + s.w2o + ', xung đột: ' + s.conflicts +
@@ -893,6 +903,7 @@ function getConfig_(opts) {
     maxCreate: num(p.MAX_CREATE_PER_RUN, 10),
     pendingTimeoutMin: num(p.PENDING_WEB_TIMEOUT_MIN, 30),
     deleteEcho: bool(p.DELETE_ECHO, false),        // chỉ bật khi phép thử A đạt
+    linkOnly: !bool(p.SYNC_CUSTOMERS, false),      // mặc định CHỈ GHÉP khách, không tạo / không sửa
     skipOmniGroupIds: String(p.SKIP_OMNI_GROUP_IDS || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
     alertEmail: p.ALERT_EMAIL || '',
     intervalMin: num(p.SYNC_INTERVAL_MIN, 10)
