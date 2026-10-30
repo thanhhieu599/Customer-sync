@@ -29,10 +29,20 @@
       </div>
       <div>
         <h2>Cách chạy</h2>
-        <label for="fixOrders">Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni</label>
+        <label for="role">Vai trò của máy này</label>
+        <select id="role">
+          <option value="server">MÁY CHÍNH – đồng bộ + chuyển đơn về khách gốc (1–2 máy hay mở nhất)</option>
+          <option value="staff">MÁY NHÂN VIÊN – chỉ dùng khung gợi ý khi tạo đơn</option>
+        </select>
+        <div class="hint">Máy nhân viên: không chuyển đơn, không hiện thông báo đồng bộ, quét toàn bộ 1 lần/ngày vào giờ lệch
+          ngẫu nhiên (không dồn tải lên Omni). Chỉ cần ít nhất 1 máy chính mở mỗi ngày.</div>
+        <label for="fixOrders">Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni (máy chính)</label>
         <select id="fixOrders"><option value="true">BẬT (khuyến nghị)</option><option value="false">TẮT</option></select>
         <div class="hint">Đơn Web về Omni bị gắn vào bản trùng (tag "Web") → tự chuyển về hồ sơ khách gốc cùng SĐT/email.
           Ở chế độ CHẠY THỬ chỉ ghi nhật ký "Sẽ chuyển…".</div>
+        <label for="orderWindowHours">Xét đơn Web tạo trong vòng</label>
+        <select id="orderWindowHours"><option value="24">24 giờ</option><option value="48">48 giờ</option>
+          <option value="72">72 giờ (nên chọn nếu máy chính có thể tắt qua cuối tuần / lễ)</option></select>
         <label for="createOnPick">Chọn khách chỉ có trên Omni trong ô gợi ý</label>
         <select id="createOnPick"><option value="true">Tự tạo khách đó trên Sapo Web và chọn vào đơn (khuyến nghị)</option>
                                   <option value="false">Chỉ hướng dẫn, không tự tạo</option></select>

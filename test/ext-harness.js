@@ -17,8 +17,9 @@ function evented() {
 }
 
 function loadExtension(opts = {}) {
-  const web = makeServer('web');
-  const omni = makeServer('omni');
+  // opts.shareWith: máy khác → dùng chung Sapo Web / Omni / bộ kết nối (mô phỏng nhiều máy nhân viên)
+  const web = opts.shareWith ? opts.shareWith.web : makeServer('web');
+  const omni = opts.shareWith ? opts.shareWith.omni : makeServer('omni');
   const state = { loggedIn: true, tabs: [], nextTab: 1, store: {}, alarms: {}, notes: [], badge: '', webhook: [] };
   const toResp = (code, text, extra = {}) => ({
     status: code, redirected: !!extra.redirected, url: extra.url || '', type: 'basic',
@@ -113,7 +114,7 @@ function loadExtension(opts = {}) {
   ctx.importScripts('background.js');
 
   const ext = {
-    web, omni, state, ctx, connector: makeConnector(web, omni),
+    web, omni, state, ctx, connector: opts.shareWith ? opts.shareWith.connector : makeConnector(web, omni),
     /** Gửi lệnh như popup/trang cài đặt */
     send: msg => new Promise(res => { onMessage.ls[0](msg, {}, res); }),
     configure: async (cfg) => ext.send({ cmd: 'saveConfig', config: Object.assign(

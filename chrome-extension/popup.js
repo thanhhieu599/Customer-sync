@@ -31,6 +31,8 @@ async function render() {
   }
   document.getElementById('next').textContent = next;
   document.getElementById('last').textContent = fmt(st.lastRunAt) + ago(st.lastRunAt);
+  document.getElementById('role').textContent = cfg.role === 'staff' ? 'Máy nhân viên (chỉ gợi ý khách)'
+    : 'Máy chính' + (cfg.fixOrders !== false ? ' – chuyển đơn về khách gốc' : '');
   document.getElementById('check').textContent = st.lastCheckAt ? fmt(st.lastCheckAt) + ago(st.lastCheckAt) +
     (st.lastCheckMessage ? ' – ' + st.lastCheckMessage : '') : '—';
   var sum = document.getElementById('summary');

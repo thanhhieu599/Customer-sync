@@ -155,6 +155,7 @@ và **không ghi lặp khi dữ liệu đã ổn định**.
 | `test/scale.test.js` | Mô phỏng 2.500 khách Omni + 400 khách Web |
 | `test/deploy.test.js` | Tệp gộp `dist/Code.gs`, kiểm tra kết nối khi mới có key Web |
 | `test/extension.test.js` | 14 kịch bản tiện ích Chrome (tab Omni, hết phiên, tab ngủ đông/treo, lịch chạy, thông báo, chạy chồng…) |
+| `test/multi.test.js` | 11 kịch bản nhiều máy dùng chung 1 Sapo (chống tạo trùng, vai trò máy, tải Omni, lệch giờ quét) |
 | `test/orders.test.js` | 14 kịch bản chuyển đơn Web về đúng khách gốc trên Omni |
 | `test/linkonly.test.js` | 5 kịch bản chế độ CHỈ GHÉP (SĐT +84 ↔ 0, không ghi gì lên Sapo) |
 | `test/suggest.test.js` | 9 kịch bản gợi ý khách Omni trong ô tìm kiếm Sapo Web và tạo khách lên Web |

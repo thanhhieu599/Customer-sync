@@ -8,6 +8,32 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 
 ---
 
+## 👥 Cài cho nhiều máy nhân viên (từ phiên bản 1.8) – không cần máy chủ riêng
+
+Mỗi máy cài tiện ích, đăng nhập Omni bằng **tài khoản của chính nhân viên**, nhập API key Sapo Web. Mọi máy đọc/ghi
+trực tiếp cùng một Sapo nên dữ liệu luôn nhất quán; bản sao danh bạ trên mỗi máy cập nhật mỗi 10 phút.
+
+| Vai trò (Cài đặt → *Vai trò của máy này*) | Dùng cho | Làm gì |
+|---|---|---|
+| **MÁY CHÍNH** | **1–2 máy hay mở nhất** (kế toán / quản lý) | Đồng bộ + **chuyển đơn Web về khách gốc** + khung gợi ý |
+| **MÁY NHÂN VIÊN** | Các máy sale còn lại | **Chỉ khung gợi ý** + tự tạo/chọn khách. Không chuyển đơn, không hiện thông báo đồng bộ, quét toàn bộ 1 lần/ngày vào **giờ lệch ngẫu nhiên** riêng từng máy |
+
+**Khi nhiều người làm cùng lúc:**
+- 2 người chọn **cùng một khách chỉ có trên Omni**: trước khi tạo, tiện ích **hỏi trực tiếp Sapo Web** khách đã có chưa →
+  người sau chọn luôn khách người trước vừa tạo, **không tạo trùng**. (Chỉ còn khả năng trùng nếu 2 người bấm **cùng một giây** – rất hiếm.)
+- Không hỏi được Sapo Web (mất mạng) → **không tạo mù**, báo thử lại.
+- 2 máy chính cùng bật chuyển đơn → vẫn đúng: máy sau thấy đơn đã ở khách gốc thì bỏ qua.
+- Tải lên Omni: mỗi máy nhân viên 1 lệnh / 10 phút; máy chính 2 lệnh / 10 phút → 5 máy ≈ 6 lệnh / 10 phút.
+
+**Bảo mật:** tạo **mỗi nhân viên một "ứng dụng riêng" (API key) trên Sapo Web** → nhân viên nghỉ việc chỉ cần xóa ứng dụng
+của người đó.
+
+**Máy chính tắt qua cuối tuần / lễ?** Cài đặt → *Xét đơn Web tạo trong vòng* → **72 giờ** để khi mở lại vẫn chuyển bù đơn.
+
+**Cài một máy nhân viên (khoảng 10 phút):** cài tiện ích (Bước 2 bên dưới) → đăng nhập Omni, ghim tab → Cài đặt: nhập
+địa chỉ + API key Sapo Web, *Vai trò* = **MÁY NHÂN VIÊN**, *Chế độ* = **CHẠY THẬT** → Lưu → **Kiểm tra kết nối** →
+**Quét toàn bộ ngay** (mỗi máy một giờ khác nhau, ngoài giờ cao điểm) → popup **Bật tự động**.
+
 ## ⭐ Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni (từ phiên bản 1.6)
 
 **Vấn đề:** đơn tạo trên Sapo Web khi về Omni bị bộ kết nối của Sapo gắn vào một **khách trùng** (mang tag `Web`),

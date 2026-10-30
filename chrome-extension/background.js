@@ -25,6 +25,7 @@ var DEFAULT_CONFIG = {
   syncCustomers: false,           // false = CHỈ GHÉP khách (không tạo / không sửa khách ở bên nào)
   fixOrders: true,                // chuyển đơn từ Sapo Web về đúng khách gốc trên Omni
   createOnPick: true,             // chọn khách CHỈ có trên Omni trong ô gợi ý → tự tạo khách đó trên Sapo Web
+  role: 'server',                 // 'server' = máy chính (chuyển đơn) | 'staff' = máy nhân viên (chỉ gợi ý)
   orderWindowHours: 24,           // chỉ xét đơn tạo trong N giờ gần nhất
   webSourceIds: '1126437'         // mã nguồn đơn Sapo Web trên Omni (kiểm chứng trên đơn SON06378)
 };
@@ -65,6 +66,21 @@ function makeClients(cfg, quick) {
     web: new WebClient(Object.assign({ base: cfg.webBase, key: cfg.webKey, secret: cfg.webSecret }, o)),
     omni: new OmniTabClient(Object.assign({ base: cfg.omniBase }, o))
   };
+}
+
+// ---------- Vai trò máy ----------
+/** Máy nhân viên: chỉ dùng khung gợi ý; không chuyển đơn, không thông báo đồng bộ, quét toàn bộ 1 lần/ngày */
+function isStaff(cfg) { return cfg.role === 'staff'; }
+var STAFF_FULL_MS = 24 * 3600 * 1000;
+
+/** Mỗi máy có một khoảng lệch ngẫu nhiên cố định (0–120 phút) để các máy không quét toàn bộ cùng lúc */
+async function machineJitterMs() {
+  var m = (await chrome.storage.local.get('machine')).machine;
+  if (!m || m.jitterMin == null) {
+    m = { jitterMin: Math.floor(Math.random() * 121) };
+    await chrome.storage.local.set({ machine: m });
+  }
+  return m.jitterMin * 60000;
 }
 
 // ---------- Nhật ký ----------
@@ -213,17 +229,19 @@ function cachingClients(c, cache) {
 }
 
 /** Quyết định lượt này quét toàn bộ, đọc thay đổi, hay bỏ qua */
-function decideMode(trigger, cache, cfg, nowMs) {
+function decideMode(trigger, cache, cfg, nowMs, jitterMs) {
   var lastFull = Date.parse(cache.lastFullAt) || 0;
   if (trigger === 'full' || !lastFull) return 'full';
   var nightly = nowMs - lastFull >= FULL_EVERY_MS && new Date(nowMs).getHours() === Number(cfg.fullScanHour);
   if (nightly) return 'full';
+  // Máy chính: quét toàn bộ mỗi N giờ (mặc định 6). Máy nhân viên: 1 lần/ngày + lệch ngẫu nhiên riêng từng máy.
+  var everyMs = isStaff(cfg) ? STAFF_FULL_MS + (jitterMs || 0) : Number(cfg.fallbackFullHours) * 3600 * 1000;
   var unsupported = (cache.incr.omni === false && !omniNewestMode(cache)) || cache.incr.web === false;
-  // Chế độ "đọc khách mới tạo": sửa khách cũ trên Omni được cập nhật bằng lượt quét toàn bộ mỗi N giờ
-  if (omniNewestMode(cache) && nowMs - lastFull >= Number(cfg.fallbackFullHours) * 3600 * 1000) return 'full';
+  // Chế độ "đọc khách mới tạo": sửa khách cũ trên Omni được cập nhật bằng lượt quét toàn bộ định kỳ
+  if (omniNewestMode(cache) && nowMs - lastFull >= everyMs) return 'full';
   if (unsupported) {
-    if (nowMs - lastFull >= Number(cfg.fallbackFullHours) * 3600 * 1000) return 'full';
-    return trigger === 'manual' ? 'full' : 'skip';
+    if (nowMs - lastFull >= everyMs) return 'full';
+    return trigger === 'manual' && !isStaff(cfg) ? 'full' : 'skip';
   }
   return 'incremental';
 }
@@ -322,7 +340,7 @@ async function runSync(trigger) {
       return { skipped: true, message: pm };
     }
     cache = await loadCache();
-    var mode = decideMode(trigger, cache, cfg, Date.now());
+    var mode = decideMode(trigger, cache, cfg, Date.now(), await machineJitterMs());
     if (mode === 'skip') {
       var next = new Date((Date.parse(cache.lastFullAt) || 0) + Number(cfg.fallbackFullHours) * 3600 * 1000);
       var sm = 'Sapo không hỗ trợ đọc theo thay đổi; lượt quét toàn bộ kế tiếp lúc ' + next.toLocaleString('vi-VN');
@@ -389,9 +407,9 @@ async function runSync(trigger) {
     if (!ecfg.dryRun) await chrome.storage.local.set({ rows: rows });
     await chrome.storage.local.set({ cache: cache });
     // Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni
-    var fix = cfg.fixOrders !== false ? await fixOrders(c, cache, cfg, ecfg.dryRun, log, now) : null;
+    var fix = cfg.fixOrders !== false && !isStaff(cfg) ? await fixOrders(c, cache, cfg, ecfg.dryRun, log, now) : null;
     if (fix) { done.errors += fix.errors; done.warnings += fix.ambiguous; }
-    var summary = (mode === 'full' ? '[QUÉT TOÀN BỘ] ' : '') +
+    var summary = (isStaff(cfg) ? '[MÁY NHÂN VIÊN] ' : '') + (mode === 'full' ? '[QUÉT TOÀN BỘ] ' : '') +
       SyncEngine.summary(ecfg, values(cache.omni).length, values(cache.web).length, result.stats, done,
                          c.omni.calls + c.web.calls, Math.round((Date.now() - started) / 1000)) +
       orderSummary(fix, ecfg.dryRun);
@@ -407,7 +425,7 @@ async function runSync(trigger) {
     }
     var st = result.stats;
     var changed = ecfg.linkOnly ? 0 : st.createdWeb + st.createdOmni + st.o2w + st.w2o + st.linked;
-    if (!ecfg.dryRun && changed > 0 && cfg.notifyChanges !== false && !done.errors) {
+    if (!ecfg.dryRun && changed > 0 && cfg.notifyChanges !== false && !isStaff(cfg) && !done.errors) {
       await notifyInfo('Đã đồng bộ ' + changed + ' khách hàng',
         'Tạo trên Web: ' + st.createdWeb + ' · Tạo trên Omni: ' + st.createdOmni + ' · Omni→Web: ' + st.o2w +
         ' · Web→Omni: ' + st.w2o + ' · Ghép mới: ' + st.linked);
@@ -466,7 +484,8 @@ async function selfTest() {
   } catch (e) { ok = false; lines.push('❌ Sapo Omni: ' + e.message); }
   lines.push('Chế độ: ' + (cfg.dryRun ? 'CHẠY THỬ (không ghi dữ liệu)' : 'CHẠY THẬT') +
              ' | Tạo tối đa mỗi lượt: ' + cfg.maxCreate + ' | Tự động: ' + (cfg.enabled ? 'BẬT, mỗi ' + cfg.intervalMin + ' phút' : 'TẮT') +
-             ' | Quét toàn bộ lúc ' + cfg.fullScanHour + ' giờ');
+             ' | Quét toàn bộ lúc ' + cfg.fullScanHour + ' giờ' +
+             ' | Vai trò: ' + (isStaff(cfg) ? 'MÁY NHÂN VIÊN (không chuyển đơn)' : 'MÁY CHÍNH (chuyển đơn: ' + (cfg.fixOrders !== false ? 'BẬT, xét ' + (cfg.orderWindowHours || 24) + ' giờ' : 'TẮT') + ')'));
   return { ok: ok, text: lines.join('\n') };
 }
 
@@ -574,6 +593,19 @@ async function pushOmniToWeb(omniId) {
     if (found && found.web_id) return { ok: true, existed: true, web_id: found.web_id, phone: found.web_phone || o.phone, email: found.web_email || o.email };
     if (!o.phone && !o.email) return { ok: false, error: 'Khách Omni này chưa có SĐT hoặc email – bổ sung trên Omni trước để tránh tạo trùng.' };
     var c = makeClients(cfg);
+    // Hỏi TRỰC TIẾP Sapo Web ngay trước khi tạo: máy khác có vừa tạo khách này chưa? (chống 2 người tạo trùng)
+    try {
+      var fresh = await c.web.listCustomers({ since: sinceFor(cache.web, cache.lastFullAt) });
+      if (!fresh.honored) fresh = await c.web.listCustomers();       // Sapo không lọc được → đọc hết (Web ít khách)
+      fresh.list.forEach(function (x) { cache.web[x.id] = SyncCore.trimWeb(x); });
+    } catch (e) {
+      return { ok: false, error: 'Chưa kiểm tra được Sapo Web trước khi tạo (' + e.message + '). Thử lại sau ít phút.' };
+    }
+    var found2 = searchOmniCache(cache, rows, o.phone || o.email || o.name, 50).filter(function (x) { return x.omni_id === o.id; })[0];
+    if (found2 && found2.web_id) {
+      if (locked) await chrome.storage.local.set({ cache: cache });
+      return { ok: true, existed: true, web_id: found2.web_id, phone: found2.web_phone || o.phone, email: found2.web_email || o.email };
+    }
     var r = await c.web.createCustomer(SyncCore.toWebPayload(o, null));
     var w = SyncCore.fromWeb(r);
     var now = new Date().toISOString();

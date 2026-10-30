@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "D&T Sapo Sync – Đồng bộ khách hàng Omni ↔ Web",
   "short_name": "D&T Sapo Sync",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Đơn tạo trên Sapo Web tự về đúng khách gốc trên Sapo Omni; gợi ý khách Omni khi tạo đơn trên Sapo Web. D&T (trangthietbi.vn).",
   "minimum_chrome_version": "116",
   "permissions": [

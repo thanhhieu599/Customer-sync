@@ -1,4 +1,4 @@
-var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'fixOrders', 'createOnPick', 'syncCustomers', 'dryRun', 'maxCreate', 'intervalMin', 'fullScanHour',
+var FIELDS = ['webBase', 'webKey', 'webSecret', 'omniBase', 'role', 'fixOrders', 'orderWindowHours', 'createOnPick', 'syncCustomers', 'dryRun', 'maxCreate', 'intervalMin', 'fullScanHour',
               'skipOmniGroupIds', 'pendingTimeoutMin', 'deleteEcho', 'alertWebhook'];
 (function () {
   var sel = document.getElementById('fullScanHour');
@@ -24,7 +24,7 @@ document.querySelectorAll('[data-tab]').forEach(function (b) {
 // ---- Cài đặt ----
 async function loadConfig() {
   var cfg = (await chrome.storage.local.get('config')).config || {};
-  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', fixOrders: true, createOnPick: true, syncCustomers: false, dryRun: true, maxCreate: 10, intervalMin: 10, fullScanHour: 2, pendingTimeoutMin: 30, deleteEcho: false };
+  var d = { omniBase: 'https://trangthietbivn.mysapogo.com', role: 'server', fixOrders: true, orderWindowHours: 24, createOnPick: true, syncCustomers: false, dryRun: true, maxCreate: 10, intervalMin: 10, fullScanHour: 2, pendingTimeoutMin: 30, deleteEcho: false };
   FIELDS.forEach(function (f) { var v = cfg[f] != null ? cfg[f] : d[f]; $(f).value = v == null ? '' : String(v); });
 }
 function readForm() {
@@ -36,6 +36,8 @@ function readForm() {
   c.maxCreate = Number(c.maxCreate) || 0; c.intervalMin = Number(c.intervalMin) || 10;
   c.pendingTimeoutMin = Number(c.pendingTimeoutMin) || 30;
   c.fullScanHour = Number(c.fullScanHour);
+  c.role = c.role === 'staff' ? 'staff' : 'server';
+  c.orderWindowHours = [24, 48, 72].indexOf(Number(c.orderWindowHours)) >= 0 ? Number(c.orderWindowHours) : 24;
   if ([10, 15, 30, 60].indexOf(c.intervalMin) < 0) c.intervalMin = 10;
   return c;
 }
