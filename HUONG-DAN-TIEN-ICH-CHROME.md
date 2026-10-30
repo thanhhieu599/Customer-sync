@@ -8,6 +8,39 @@ Tiện ích đồng bộ khách hàng 2 chiều Sapo Omni ↔ Sapo Web, **không
 
 ---
 
+## ⭐ Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni (từ phiên bản 1.6)
+
+**Vấn đề:** đơn tạo trên Sapo Web khi về Omni bị bộ kết nối của Sapo gắn vào một **khách trùng** (mang tag `Web`),
+không phải hồ sơ khách gốc → lịch sử mua hàng, công nợ bị tách đôi.
+
+**Tiện ích tự sửa (đã kiểm chứng trên Omni thật: đổi khách trên đơn đã chốt qua API được chấp nhận):**
+
+```
+Sale tạo đơn trên Sapo Web → Sapo đẩy đơn về Omni, gắn vào khách trùng (tag "Web")
+→ mỗi 10 phút tiện ích đọc trang đầu danh sách đơn Omni (1 lệnh)
+→ đơn kênh "Sapoweb" trong 24 giờ, đang ở khách tag "Web"
+→ tìm hồ sơ GỐC cùng SĐT (+84… = 0…) hoặc email → chuyển đơn về hồ sơ gốc → đọc lại xác nhận
+```
+
+| Tình huống | Tiện ích làm |
+|---|---|
+| Có **đúng 1** hồ sơ gốc (không tag "Web", tạo trước) | **Chuyển đơn về hồ sơ gốc**, ghi nhật ký *"Đã chuyển đơn về khách gốc"*, hiện thông báo |
+| Khách **hoàn toàn mới** (chưa có hồ sơ nào khác trên Omni) | Giữ nguyên đơn |
+| **Nhiều** hồ sơ trùng SĐT/email, hoặc hồ sơ "gốc" lại tạo sau | **Không chuyển**, ghi cảnh báo *"Đơn Web cần xem tay"* kèm danh sách hồ sơ (báo 1 lần) |
+| Đơn tại quầy / kênh khác, đơn cũ hơn 24 giờ, đơn đã ở hồ sơ gốc | Không đụng tới |
+| Omni nhận lệnh nhưng không lưu | Báo lỗi, lượt sau thử lại |
+| Omni chậm / hết phiên đăng nhập | Dừng ngay (tạm nghỉ / báo đăng nhập lại); đơn đã chuyển xong được ghi nhớ |
+
+**Bật lần đầu:**
+1. Cài đặt → *Chuyển đơn từ Sapo Web về đúng khách gốc* = **BẬT**, *Chế độ* = **CHẠY THỬ** → Lưu.
+2. Tạo 1 đơn thử trên Sapo Web → chờ đơn về Omni → popup **Chạy ngay**.
+3. Thẻ **Nhật ký**: dòng *"[THỬ] Sẽ chuyển đơn về khách gốc"* phải ghi đúng mã đơn, đúng khách gốc.
+4. Đúng → *Chế độ* = **CHẠY THẬT** → Lưu → **Chạy ngay** → mở đơn trên Omni kiểm tra khách hàng, lịch sử mua hàng, công nợ.
+5. Popup → **Bật tự động**.
+
+> Hằng ngày nên lọc Nhật ký theo **WARN** để xử lý tay các đơn *"cần xem tay"* (thường do khách có 2 hồ sơ thật trên Omni –
+> nên gộp/ngừng dùng hồ sơ phụ để các đơn sau tự chuyển đúng).
+
 ## Chế độ mặc định: CHỈ GHÉP khách (từ phiên bản 1.5)
 
 Mục tiêu của D&T: **đơn tạo trên Sapo Web phải về đúng hồ sơ khách gốc trên Omni** – không đẩy khách qua lại.

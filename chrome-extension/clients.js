@@ -311,5 +311,30 @@ function honored_(list, since) {
   return list.every(function (c) { var t = Date.parse(c.modified_on || c.created_on || ''); return !isNaN(t) && t >= min; });
 }
 
+/**
+ * Đọc đơn Omni mới nhất (Omni trả đơn mới tạo lên đầu), dừng khi gặp đơn tạo trước `since`. Thường 1 lệnh.
+ * ordered = false nếu Omni không xếp mới → cũ (khi đó không dùng kết quả để chuyển đơn).
+ */
+OmniTabClient.prototype.listRecentOrders = async function (since, maxPages) {
+  var min = Date.parse(since), all = [];
+  for (var page = 1; page <= (maxPages || 3); page++) {
+    var j = await this.request('get', 'orders.json?limit=' + this.pageSize + '&page=' + page);
+    var list = j.orders || [];
+    all = all.concat(list);
+    if (all.length > 1 && !isNewestFirst_(all)) return { list: all, ordered: false };
+    if (!list.length || list.length < this.pageSize) break;
+    var last = Date.parse(list[list.length - 1].created_on || '');
+    if (!isNaN(last) && last < min) break;
+  }
+  return { list: all, ordered: true };
+};
+
+/** Đổi khách trên đơn – đúng cách đã kiểm chứng trên Omni thật (PUT chỉ gồm id + customer_id → 200) */
+OmniTabClient.prototype.updateOrderCustomer = async function (orderId, customerId) {
+  var j = await this.request('put', 'orders/' + orderId + '.json',
+                             { order: { id: Number(orderId), customer_id: Number(customerId) } });
+  return j.order;
+};
+
 attachCustomerMethods_(OmniTabClient, 'omni');
 attachCustomerMethods_(WebClient, 'web');

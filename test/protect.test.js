@@ -6,7 +6,9 @@ const assert = require('node:assert');
 const { loadExtension } = require('./ext-harness');
 const { tick, nowIso } = require('./harness');
 
-const omniGets = ext => ext.omni.calls.filter(c => c.startsWith('get '));
+// Lệnh đọc DANH SÁCH KHÁCH Omni (lệnh đọc đơn hàng để chuyển đơn được đếm riêng)
+const omniGets = ext => ext.omni.calls.filter(c => c.startsWith('get ') && /\/admin\/customers/.test(c));
+const omniAllGets = ext => ext.omni.calls.filter(c => c.startsWith('get '));
 const omniWrites = ext => ext.omni.calls.filter(c => !c.startsWith('get '));
 const pairs = ext => ext.rows().filter(r => r.status === 'pair');
 function resetCalls(ext) { ext.omni.calls.length = 0; ext.omni.callAt.length = 0; ext.web.calls.length = 0; }
@@ -200,6 +202,7 @@ test('Omni thật: bỏ qua bộ lọc nhưng xếp khách mới lên đầu →
   assert.strictEqual(r2.mode, 'incremental');
   assert.strictEqual(omniGets(ext).length, 1, 'chỉ đọc trang đầu');
   assert.doesNotMatch(omniGets(ext)[0], /modified_on_min/);
+  assert.strictEqual(omniAllGets(ext).length, 2, 'tổng mỗi lượt: 1 lệnh đọc khách + 1 lệnh đọc đơn');
 });
 
 test('Omni thật: khách MỚI tạo trên Omni được bắt ngay lượt kế tiếp (gợi ý + ghép + đẩy lên Web)', async () => {

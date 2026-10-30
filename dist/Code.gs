@@ -76,7 +76,9 @@ var SyncCore = (function () {
       orders: Number((c.sale_order && c.sale_order.order_purchases) || 0),
       created: c.created_on || '',
       modified: c.modified_on || c.created_on || '',
-      active: !c.status || c.status === 'active'
+      active: !c.status || c.status === 'active',
+      // Khách do bộ kết nối Sapo Web tạo bên Omni mang tag "Web"
+      webTag: [].concat(c.tags || []).some(function (t) { return String(t).trim().toLowerCase() === 'web'; })
     };
   }
 
@@ -115,6 +117,7 @@ var SyncCore = (function () {
       id: c.id, code: c.code || '', name: c.name || '', phone_number: c.phone_number || '', email: c.email || '',
       customer_group_id: c.customer_group_id == null ? null : c.customer_group_id, status: c.status || 'active',
       created_on: c.created_on || '', modified_on: c.modified_on || '',
+      tags: [].concat(c.tags || []),
       sale_order: { order_purchases: Number((c.sale_order && c.sale_order.order_purchases) || 0) },
       addresses: addr ? [slimAddress(addr, 'phone_number')] : []
     };
@@ -361,6 +364,63 @@ var SyncCore = (function () {
     return { actions: actions, stats: stats };
   }
 
+  // ---------- Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni ----------
+  /** Đơn do Sapo Web đẩy về Omni (kênh "Sapoweb" hoặc mã nguồn cấu hình) */
+  function isWebOrder(o, sourceIds) {
+    if (String(o.channel || '').toLowerCase() === 'sapoweb') return true;
+    return (sourceIds || []).indexOf(String(o.source_id)) >= 0;
+  }
+
+  /**
+   * Với mỗi đơn Web mới, tìm KHÁCH GỐC trên Omni để chuyển đơn về.
+   * @param orders   đơn Omni (mới → cũ)
+   * @param omniRaw  khách Omni (bản sao)
+   * @param done     { orderId: kết quả đã xử lý } – không xử lý lại
+   * @param opts     { now, windowHours, sourceIds }
+   * @return [{ order, action: 'move'|'ok'|'no_master'|'ambiguous'|'no_customer', from, to, candidates, reason }]
+   */
+  function planOrderFixes(orders, omniRaw, done, opts) {
+    opts = opts || {};
+    var now = ts(opts.now || new Date().toISOString());
+    var windowMs = (opts.windowHours == null ? 24 : opts.windowHours) * 3600000;
+    var byId = {}, byKey = {};
+    (omniRaw || []).forEach(function (raw) {
+      var c = fromOmni(raw);
+      byId[c.id] = c;
+      keysOf(c).forEach(function (k) { (byKey[k] = byKey[k] || []).push(c); });
+    });
+    var out = [];
+    (orders || []).forEach(function (o) {
+      var oid = String(o.id);
+      if (done && done[oid]) return;
+      if (now - ts(o.created_on) > windowMs) return;
+      if (!isWebOrder(o, opts.sourceIds)) return;
+      var cur = byId[String(o.customer_id)] || (o.customer_data ? fromOmni(o.customer_data) : null);
+      if (!cur) { out.push({ order: o, action: 'no_customer', reason: 'đơn không có khách' }); return; }
+      if (!cur.webTag) { out.push({ order: o, action: 'ok', from: cur, reason: 'đơn đã gắn khách gốc' }); return; }
+      // Tìm khách khác cùng SĐT (ưu tiên) hoặc cùng email
+      var phoneKey = cur.phone ? 'p:' + cur.phone : '', emailKey = cur.email ? 'e:' + cur.email : '';
+      function others(k) { return k ? (byKey[k] || []).filter(function (c) { return c.id !== cur.id && c.active; }) : []; }
+      var cands = others(phoneKey);
+      if (!cands.length) cands = others(emailKey);
+      if (!cands.length) { out.push({ order: o, action: 'no_master', from: cur, reason: 'khách mới, chưa có hồ sơ gốc trên Omni' }); return; }
+      var nonWeb = cands.filter(function (c) { return !c.webTag; });
+      var master = nonWeb.length === 1 ? nonWeb[0] : (nonWeb.length === 0 && cands.length === 1 ? cands[0] : null);
+      if (!master) {
+        out.push({ order: o, action: 'ambiguous', from: cur, candidates: cands,
+                   reason: 'có ' + cands.length + ' hồ sơ trùng SĐT/email, không xác định được duy nhất khách gốc' });
+        return;
+      }
+      if (ts(master.created) >= ts(cur.created)) {
+        out.push({ order: o, action: 'ambiguous', from: cur, candidates: [master],
+                   reason: 'hồ sơ trùng được tạo SAU khách trên đơn – không chắc đâu là khách gốc' });
+        return;
+      }
+      out.push({ order: o, action: 'move', from: cur, to: master });
+    });
+    return out;
+  }
+
   // ---------- Dựng dữ liệu gửi lên API ----------
   /** Giữ nguyên tag của khách, chỉ thay tag omni:<mã KH> */
   function mergeWebTags(oldTags, omniCode) {
@@ -420,7 +480,7 @@ var SyncCore = (function () {
     FIELDS: FIELDS,
     normPhone: normPhone, intlPhone: intlPhone, normEmail: normEmail, normText: normText,
     fromOmni: fromOmni, fromWeb: fromWeb, trimOmni: trimOmni, trimWeb: trimWeb, hashOf: hashOf, keysOf: keysOf, diff: diff,
-    mergeForLink: mergeForLink, plan: plan, toWebPayload: toWebPayload, toOmniPayload: toOmniPayload,
+    mergeForLink: mergeForLink, plan: plan, planOrderFixes: planOrderFixes, isWebOrder: isWebOrder, toWebPayload: toWebPayload, toOmniPayload: toOmniPayload,
     mergeWebTags: mergeWebTags
   };
 })();

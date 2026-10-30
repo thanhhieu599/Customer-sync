@@ -22,7 +22,10 @@ var DEFAULT_CONFIG = {
   dryRun: true, maxCreate: 10, pendingTimeoutMin: 30, deleteEcho: false,
   skipOmniGroupIds: '', intervalMin: 10, enabled: false, alertWebhook: '',
   fullScanHour: 2, pauseMin: 60, fallbackFullHours: 6, notifyChanges: true,
-  syncCustomers: false            // false = CHỈ GHÉP khách (không tạo / không sửa khách ở bên nào)
+  syncCustomers: false,           // false = CHỈ GHÉP khách (không tạo / không sửa khách ở bên nào)
+  fixOrders: true,                // chuyển đơn từ Sapo Web về đúng khách gốc trên Omni
+  orderWindowHours: 24,           // chỉ xét đơn tạo trong N giờ gần nhất
+  webSourceIds: '1126437'         // mã nguồn đơn Sapo Web trên Omni (kiểm chứng trên đơn SON06378)
 };
 
 // ---------- Cấu hình ----------
@@ -224,6 +227,81 @@ function decideMode(trigger, cache, cfg, nowMs) {
   return 'incremental';
 }
 
+// ---------- Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni ----------
+var ORDER_MEMORY_DAYS = 7;
+
+async function fixOrders(c, cache, cfg, dry, log, now) {
+  var st = { webOrders: 0, moved: 0, planned: 0, ambiguous: 0, noMaster: 0, ok: 0, errors: 0 };
+  var tag = dry ? '[THỬ] ' : '';
+  var store = (await chrome.storage.local.get('orderFix')).orderFix || {};
+  var keepFrom = Date.now() - ORDER_MEMORY_DAYS * 86400000;
+  Object.keys(store).forEach(function (k) { if ((store[k].at || 0) < keepFrom) delete store[k]; });
+  var windowHours = Number(cfg.orderWindowHours) || 24;
+  var since = new Date(Date.parse(now) - windowHours * 3600000).toISOString();
+  var res = await c.omni.listRecentOrders(since, 3);
+  if (!res.ordered) {
+    log.add('WARN', 'Bỏ qua chuyển đơn lượt này', '', '', '', 'Danh sách đơn Omni không xếp mới → cũ như dự kiến');
+    return st;
+  }
+  var sourceIds = String(cfg.webSourceIds || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  var plan = SyncCore.planOrderFixes(res.list, values(cache.omni), store,
+                                     { now: now, windowHours: windowHours, sourceIds: sourceIds });
+  function remember(o, r) { if (!dry) store[String(o.id)] = { r: r, at: Date.now() }; }
+  function who(x) { return x ? '"' + x.name + '" (ID ' + x.id + (x.phone ? ', ' + x.phone : x.email ? ', ' + x.email : '') + ')' : '—'; }
+
+  for (var i = 0; i < plan.length; i++) {
+    var p = plan[i], o = p.order;
+    st.webOrders++;
+    if (p.action === 'ok') { st.ok++; remember(o, 'ok'); continue; }
+    if (p.action === 'no_master' || p.action === 'no_customer') {
+      st.noMaster++; remember(o, p.action);
+      log.add('INFO', tag + 'Đơn Web giữ nguyên', p.from ? p.from.id : '', '', p.from ? p.from.name : '', o.code + ': ' + p.reason);
+      continue;
+    }
+    if (p.action === 'ambiguous') {
+      st.ambiguous++; remember(o, 'ambiguous');
+      log.add('WARN', tag + 'Đơn Web cần xem tay', p.from.id, '', p.from.name,
+              o.code + ': ' + p.reason + '. Các hồ sơ: ' + p.candidates.map(who).join('; '));
+      continue;
+    }
+    // p.action === 'move'
+    if (dry) {
+      st.planned++;
+      log.add('INFO', '[THỬ] Sẽ chuyển đơn về khách gốc', p.to.id, '', p.to.name,
+              o.code + ': từ ' + who(p.from) + ' → khách gốc ' + who(p.to));
+      continue;
+    }
+    try {
+      var saved = await c.omni.updateOrderCustomer(o.id, p.to.id);
+      if (!saved || String(saved.customer_id) !== String(p.to.id)) {
+        st.errors++;
+        log.add('ERROR', 'Chuyển đơn chưa thành công', p.to.id, '', p.to.name,
+                o.code + ': Omni chưa lưu khách mới trên đơn (khách hiện tại: ' + (saved ? saved.customer_id : '?') + '). Sẽ thử lại lượt sau.');
+        continue;                                   // không ghi nhớ → lượt sau thử lại
+      }
+      st.moved++; remember(o, 'moved');
+      await chrome.storage.local.set({ orderFix: store });   // lưu ngay từng đơn
+      var cf = cache.omni[p.from.id], ct = cache.omni[p.to.id];
+      if (cf && cf.sale_order) cf.sale_order.order_purchases = Math.max(0, (cf.sale_order.order_purchases || 0) - 1);
+      if (ct && ct.sale_order) ct.sale_order.order_purchases = (ct.sale_order.order_purchases || 0) + 1;
+      log.add('INFO', 'Đã chuyển đơn về khách gốc', p.to.id, '', p.to.name,
+              o.code + ' (' + (o.total != null ? Number(o.total).toLocaleString('vi-VN') + 'đ' : '') + '): từ ' + who(p.from) + ' → ' + who(p.to));
+    } catch (e) {
+      if (e && e.fatal) { await chrome.storage.local.set({ orderFix: store }); throw e; }
+      st.errors++;
+      log.add('ERROR', 'Chuyển đơn lỗi', p.to.id, '', p.to.name, o.code + ': ' + e.message + ' – sẽ thử lại lượt sau');
+    }
+  }
+  if (!dry) await chrome.storage.local.set({ orderFix: store });
+  return st;
+}
+
+function orderSummary(f, dry) {
+  if (!f) return '';
+  return ' | ĐƠN WEB: ' + f.webOrders + ', ' + (dry ? 'sẽ chuyển về khách gốc: ' + f.planned : 'đã chuyển về khách gốc: ' + f.moved) +
+         ', cần xem tay: ' + f.ambiguous + ', khách mới giữ nguyên: ' + f.noMaster + (f.errors ? ', lỗi: ' + f.errors : '');
+}
+
 // ---------- Một lượt đồng bộ ----------
 async function runSync(trigger) {
   if (!(await acquireLock())) {
@@ -309,9 +387,13 @@ async function runSync(trigger) {
     var done = await SyncEngine.runAsync(gen, cachingClients(c, cache));
     if (!ecfg.dryRun) await chrome.storage.local.set({ rows: rows });
     await chrome.storage.local.set({ cache: cache });
+    // Chuyển đơn từ Sapo Web về đúng khách gốc trên Omni
+    var fix = cfg.fixOrders !== false ? await fixOrders(c, cache, cfg, ecfg.dryRun, log, now) : null;
+    if (fix) { done.errors += fix.errors; done.warnings += fix.ambiguous; }
     var summary = (mode === 'full' ? '[QUÉT TOÀN BỘ] ' : '') +
       SyncEngine.summary(ecfg, values(cache.omni).length, values(cache.web).length, result.stats, done,
-                         c.omni.calls + c.web.calls, Math.round((Date.now() - started) / 1000));
+                         c.omni.calls + c.web.calls, Math.round((Date.now() - started) / 1000)) +
+      orderSummary(fix, ecfg.dryRun);
     log.add(done.errors ? 'WARN' : 'INFO', 'TÓM TẮT', '', '', '', summary);
     var state = done.errors ? 'error' : (done.warnings ? 'warn' : 'ok');
     await setStatus(state, done.errors ? done.errors + ' lỗi, xem nhật ký' : (done.warnings ? done.warnings + ' cảnh báo' : 'Hoạt động tốt'),
@@ -319,6 +401,9 @@ async function runSync(trigger) {
     await chrome.storage.local.remove('pausedUntil');
     if (done.errors) await alertUser('errors', 'Đồng bộ Sapo có ' + done.errors + ' lỗi', summary);
     else await chrome.storage.local.remove('lastAlert');
+    if (fix && fix.moved > 0) {
+      await notifyInfo('Đã chuyển ' + fix.moved + ' đơn Web về đúng khách gốc', 'Xem chi tiết trong Nhật ký của tiện ích D&T Sapo Sync.');
+    }
     var st = result.stats;
     var changed = ecfg.linkOnly ? 0 : st.createdWeb + st.createdOmni + st.o2w + st.w2o + st.linked;
     if (!ecfg.dryRun && changed > 0 && cfg.notifyChanges !== false && !done.errors) {
@@ -326,7 +411,7 @@ async function runSync(trigger) {
         'Tạo trên Web: ' + st.createdWeb + ' · Tạo trên Omni: ' + st.createdOmni + ' · Omni→Web: ' + st.o2w +
         ' · Web→Omni: ' + st.w2o + ' · Ghép mới: ' + st.linked);
     }
-    outcome = { ok: true, mode: mode, summary: summary, stats: result.stats, done: done, omniCalls: c.omni.calls };
+    outcome = { ok: true, mode: mode, summary: summary, stats: result.stats, done: done, fix: fix, omniCalls: c.omni.calls };
   } catch (e) {
     var kind = e && e.kind;
     // Dừng giữa lượt: vẫn lưu những việc ĐÃ làm xong để lượt sau không làm lại

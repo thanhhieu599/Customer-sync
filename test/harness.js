@@ -40,7 +40,17 @@ function makeServer(kind) {
       Object.assign(rec, patch, { modified_on: tick() });
       return rec;
     },
-    callAt: [], ignoreSince: false, newestFirst: false,
+    callAt: [], ignoreSince: false, newestFirst: false, orders: new Map(), nextOrder: 1086079473, ignoreOrderCustomer: false,
+    /** Thêm đơn trực tiếp trên Omni (vd. đơn tại quầy) */
+    addOrder(customerId, extra) {
+      const c = db.get(customerId);
+      const o = Object.assign({ id: srv.nextOrder++, code: 'SON0' + (6000 + srv.orders.size), created_on: tick(), modified_on: clock && new Date(clock).toISOString(),
+        status: 'finalized', channel: null, source_id: 1000001, total: 216000, customer_id: customerId,
+        customer_data: c ? JSON.parse(JSON.stringify(c)) : null }, extra || {});
+      if (c) c.sale_order.order_purchases += 1;
+      srv.orders.set(o.id, o);
+      return o;
+    },
     handle(method, url, payload) {
       srv.calls.push(method + ' ' + url);
       srv.callAt.push(clock);
@@ -60,11 +70,37 @@ function makeServer(kind) {
         return [200, JSON.stringify(body)];
       }
       if (method === 'get' && p === 'customers/count.json') return [200, JSON.stringify({ count: db.size })];
-      if (method === 'get' && p === 'orders.json') {
+      if (method === 'get' && p === 'orders.json' && u.searchParams.get('customer_id')) {
         const cid = Number(u.searchParams.get('customer_id'));
         const rec = db.get(cid);
         const n = rec ? (kind === 'omni' ? rec.sale_order.order_purchases : rec.orders_count) : 0;
         return [200, JSON.stringify({ metadata: { total: n }, orders: n ? [{ id: 1, customer_id: cid }] : [] })];
+      }
+      if (method === 'get' && p === 'orders.json') {            // như Omni thật: đơn mới tạo lên đầu
+        const limit = Math.min(Number(u.searchParams.get('limit') || 20), 50);
+        const page = Number(u.searchParams.get('page') || 1);
+        const all = [...srv.orders.values()].sort((a, b) => b.id - a.id);
+        return [200, JSON.stringify({ metadata: { total: all.length, page, limit }, orders: all.slice((page - 1) * limit, page * limit) })];
+      }
+      const mo = p.match(/^orders\/(\d+)\.json$/);
+      if (mo && method === 'get') {
+        const o = srv.orders.get(Number(mo[1]));
+        return o ? [200, JSON.stringify({ order: o })] : [404, '{}'];
+      }
+      if (mo && method === 'put') {
+        const o = srv.orders.get(Number(mo[1]));
+        if (!o) return [404, '{}'];
+        const body = JSON.parse(payload).order;
+        if (body.customer_id != null && !srv.ignoreOrderCustomer) {
+          const to = db.get(Number(body.customer_id));
+          if (!to) return [422, '{"errors":{"customer_id":"not found"}}'];
+          const from = db.get(o.customer_id);
+          if (from) from.sale_order.order_purchases = Math.max(0, from.sale_order.order_purchases - 1);
+          to.sale_order.order_purchases += 1;
+          o.customer_id = to.id; o.customer_data = JSON.parse(JSON.stringify(to));
+        }
+        o.modified_on = tick();
+        return [200, JSON.stringify({ order: o })];
       }
       const m = p.match(/^customers\/(\d+)\.json$/);
       if (method === 'post' && p === 'customers.json') {
@@ -116,19 +152,30 @@ function makeServer(kind) {
 /** Bộ kết nối Sapo: mỗi khách Web mới → tạo thêm 1 khách bên Omni (không ghép theo SĐT) */
 function makeConnector(web, omni) {
   const seen = new Set([...web.db.keys()]);
-  return {
+  const link = new Map();                         // khách Web → khách Omni do bộ kết nối tạo (bản dội)
+  const toLocal = p => p && p.startsWith('+84') ? '0' + p.slice(3) : p;   // Omni lưu SĐT dạng 0…
+  const conn = {
+    link,
     run() {
       for (const w of web.db.values()) {
         if (seen.has(w.id)) continue;
         seen.add(w.id);
-        omni.add({
+        const e = omni.add({
           name: [w.last_name, w.first_name].filter(Boolean).join(' '),
-          phone_number: w.phone, email: w.email,
-          addresses: w.default_address ? [{ address1: w.default_address.address1, phone_number: w.phone }] : []
+          phone_number: toLocal(w.phone), email: w.email, tags: ['Web'],
+          addresses: w.default_address ? [{ address1: w.default_address.address1, phone_number: toLocal(w.phone) }] : []
         });
+        link.set(w.id, e.id);
       }
+    },
+    /** Sale tạo đơn trên Sapo Web cho khách Web → Sapo đẩy đơn về Omni, gắn vào bản dội (giống thật) */
+    webOrder(webCustomerId, extra) {
+      conn.run();
+      const omniId = link.get(webCustomerId);
+      return omni.addOrder(omniId, Object.assign({ channel: 'Sapoweb', source_id: 1126437 }, extra || {}));
     }
   };
+  return conn;
 }
 
 // ---------- Google Apps Script giả ----------
