@@ -257,6 +257,23 @@ function attachCustomerMethods_(Client, name) {
     }
     return { list: all, honored: since ? honored_(all, since) : true };
   };
+  /**
+   * Đọc khách MỚI TẠO từ trang đầu (Sapo Omni trả khách mới tạo lên đầu), dừng khi gặp khách tạo trước `since`.
+   * Thường chỉ 1 lệnh. ordered = false nếu Sapo không thực sự xếp mới → cũ (khi đó không dùng cách này).
+   */
+  Client.prototype.listNewest = async function (since, maxPages) {
+    var min = Date.parse(since), all = [];
+    for (var page = 1; page <= (maxPages || 3); page++) {
+      var j = await this.request('get', 'customers.json?limit=' + this.pageSize + '&page=' + page);
+      var list = j.customers || [];
+      all = all.concat(list);
+      if (!isNewestFirst_(all)) return { list: all, ordered: false };
+      if (!list.length || list.length < this.pageSize) break;
+      var last = Date.parse(list[list.length - 1].created_on || '');
+      if (!isNaN(last) && last < min) break;           // đã đọc tới khách cũ hơn mốc → đủ
+    }
+    return { list: all, ordered: true };
+  };
   Client.prototype.countCustomers = async function () {
     var j = await this.request('get', 'customers.json?limit=1&page=1');
     if (j.metadata && j.metadata.total != null) return { total: j.metadata.total, sample: (j.customers || [])[0] };
@@ -277,6 +294,15 @@ function attachCustomerMethods_(Client, name) {
     var total = j.metadata && j.metadata.total != null ? j.metadata.total : (j.orders || []).length;
     return total > 0;
   };
+}
+
+/** Danh sách có xếp theo ngày tạo mới → cũ không */
+function isNewestFirst_(list) {
+  for (var i = 1; i < list.length; i++) {
+    var a = Date.parse(list[i - 1].created_on || ''), b = Date.parse(list[i].created_on || '');
+    if (isNaN(a) || isNaN(b) || b > a) return false;
+  }
+  return list.length > 1;
 }
 
 /** Sapo có tôn trọng bộ lọc "chỉ khách thay đổi từ thời điểm since" không (cho phép lệch 2 phút) */

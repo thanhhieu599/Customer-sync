@@ -23,8 +23,16 @@ tiện ích chạy theo nguyên tắc **"nhẹ hơn một nhân viên thao tác"
 | Số lệnh ghi Omni mỗi lượt | Không giới hạn | **Tối đa 60**, phần còn lại để lượt sau |
 | Xóa bản dội (nếu bật) | Dựa vào số liệu lưu sẵn | **Hỏi lại Sapo có đơn hàng không ngay trước khi xóa** |
 
-Nếu Sapo không hỗ trợ "chỉ đọc khách thay đổi", tiện ích tự nhận ra ngay từ trang đầu (không đọc hết),
-và chuyển sang **quét toàn bộ mỗi 6 giờ** thay vì mỗi 10 phút.
+**Sapo Omni của D&T** (kiểm chứng 29/10/2026) **không** lọc được "chỉ khách thay đổi" nhưng luôn trả **khách mới tạo lên đầu**.
+Tiện ích tự nhận ra và chạy chế độ phù hợp:
+
+| Loại thay đổi | Thời gian cập nhật | Số lệnh |
+|---|---|---|
+| Khách **mới tạo** trên Omni (gợi ý, ghép, đẩy lên Web) | ≤ 10 phút | 1 lệnh/lượt (trang đầu) |
+| Khách mới / sửa trên **Sapo Web** → Omni | ≤ 10 phút | 1 lệnh/lượt (Web lọc được theo thay đổi) |
+| **Sửa thông tin khách cũ** trên Omni → Web | ≤ 6 giờ (lượt quét toàn bộ, chậm rãi) | ~50 lệnh / 6 giờ |
+
+Nếu Sapo vừa không lọc được vừa không xếp khách mới lên đầu, tiện ích chuyển sang **quét toàn bộ mỗi 6 giờ**.
 
 ## 1. Chuẩn bị (làm 1 lần)
 

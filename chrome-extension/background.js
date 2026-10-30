@@ -142,11 +142,13 @@ async function acquireLock() {
 async function releaseLock() { await chrome.storage.local.remove('lock'); RUNNING = false; }
 
 // ---------- Bản sao danh sách khách ----------
-function emptyCache() { return { omni: {}, web: {}, lastFullAt: '', incr: { omni: null, web: null } }; }
+function emptyCache() { return { omni: {}, web: {}, lastFullAt: '', incr: { omni: null, web: null }, newest: { omni: null } }; }
 
 async function loadCache() {
   var c = (await chrome.storage.local.get('cache')).cache;
-  return c && c.omni && c.web ? c : emptyCache();
+  if (!(c && c.omni && c.web)) return emptyCache();
+  c.newest = c.newest || { omni: null };
+  return c;
 }
 
 function values(map) { return Object.keys(map).map(function (k) { return map[k]; }); }
@@ -161,6 +163,20 @@ function sinceFor(map, lastFullAt) {
   if (!max) max = Date.parse(lastFullAt) || Date.now();
   return new Date(max - INCR_OVERLAP_MS).toISOString();
 }
+
+/** Mốc "khách mới tạo từ": khách mới tạo gần nhất đã biết, lùi 10 phút */
+function sinceCreated(map, lastFullAt) {
+  var max = 0;
+  Object.keys(map).forEach(function (k) {
+    var t = Date.parse(map[k].created_on || '');
+    if (!isNaN(t) && t > max) max = t;
+  });
+  if (!max) max = Date.parse(lastFullAt) || Date.now();
+  return new Date(max - INCR_OVERLAP_MS).toISOString();
+}
+
+/** Omni không lọc được theo "thay đổi" nhưng xếp khách mới tạo lên đầu → đọc trang đầu mỗi lượt */
+function omniNewestMode(cache) { return cache.incr.omni === false && cache.newest && cache.newest.omni === true; }
 
 /** Bọc client: mọi kết quả ghi lên Sapo được cập nhật ngay vào bản sao */
 function cachingClients(c, cache) {
@@ -196,7 +212,9 @@ function decideMode(trigger, cache, cfg, nowMs) {
   if (trigger === 'full' || !lastFull) return 'full';
   var nightly = nowMs - lastFull >= FULL_EVERY_MS && new Date(nowMs).getHours() === Number(cfg.fullScanHour);
   if (nightly) return 'full';
-  var unsupported = cache.incr.omni === false || cache.incr.web === false;
+  var unsupported = (cache.incr.omni === false && !omniNewestMode(cache)) || cache.incr.web === false;
+  // Chế độ "đọc khách mới tạo": sửa khách cũ trên Omni được cập nhật bằng lượt quét toàn bộ mỗi N giờ
+  if (omniNewestMode(cache) && nowMs - lastFull >= Number(cfg.fallbackFullHours) * 3600 * 1000) return 'full';
   if (unsupported) {
     if (nowMs - lastFull >= Number(cfg.fallbackFullHours) * 3600 * 1000) return 'full';
     return trigger === 'manual' ? 'full' : 'skip';
@@ -246,7 +264,22 @@ async function runSync(trigger) {
       var sides = [['omni', c.omni, SyncCore.trimOmni], ['web', c.web, SyncCore.trimWeb]];
       for (var i = 0; i < sides.length; i++) {
         var side = sides[i][0];
-        var res = await sides[i][1].listCustomers({ since: sinceFor(cache[side], cache.lastFullAt) });
+        var res;
+        if (side === 'omni' && omniNewestMode(cache)) {
+          res = await c.omni.listNewest(sinceCreated(cache.omni, cache.lastFullAt));
+          res.honored = res.ordered;
+          if (!res.ordered) cache.newest.omni = false;          // Omni không còn xếp mới → cũ: về chế độ an toàn
+        } else {
+          res = await sides[i][1].listCustomers({ since: sinceFor(cache[side], cache.lastFullAt) });
+          // Omni bỏ qua bộ lọc nhưng trả khách mới tạo lên đầu → chuyển sang "đọc khách mới tạo", vẫn chạy tiếp
+          if (side === 'omni' && !res.honored && isNewestFirst_(res.list)) {
+            cache.incr.omni = false; cache.newest.omni = true;
+            log.add('INFO', 'Sapo Omni: chuyển sang đọc khách mới tạo', '', '', '',
+                    'Omni không lọc được theo "thay đổi" nhưng xếp khách mới lên đầu: mỗi lượt đọc trang đầu (1 lệnh) để bắt khách mới; ' +
+                    'sửa thông tin khách cũ trên Omni được cập nhật bằng lượt quét toàn bộ mỗi ' + cfg.fallbackFullHours + ' giờ');
+            res.honored = true;
+          }
+        }
         if (!res.honored) {
           cache.incr[side] = false;
           await chrome.storage.local.set({ cache: cache });
@@ -257,7 +290,7 @@ async function runSync(trigger) {
           outcome = { ok: true, summary: 'Chuyển sang quét toàn bộ mỗi ' + cfg.fallbackFullHours + ' giờ' };
           return outcome;
         }
-        cache.incr[side] = true;
+        if (!(side === 'omni' && omniNewestMode(cache))) cache.incr[side] = true;
         res.list.forEach(function (x) { cache[side][x.id] = sides[i][2](x); });
       }
     }

@@ -178,3 +178,75 @@ test('bảo vệ: trần 60 lệnh ghi Omni mỗi lượt → dừng êm, lượ
   const names = [...ext.omni.db.values()].map(c => c.name).filter(n => /^Web /.test(n));
   assert.strictEqual(new Set(names).size, 80, 'không trùng');
 });
+
+/** Giống hệt Omni thật của D&T (kiểm chứng 29/10): bỏ qua modified_on_min, trả khách mới tạo lên đầu */
+function realOmni(ext) { ext.omni.ignoreSince = true; ext.omni.newestFirst = true; }
+
+test('Omni thật: bỏ qua bộ lọc nhưng xếp khách mới lên đầu → mỗi lượt chỉ 1 lệnh đọc trang đầu, vẫn chạy tiếp', async () => {
+  const ext = loadExtension();
+  realOmni(ext);
+  ext.openOmniTab();
+  bigShop(ext, 400);
+  await ext.configure({ skipOmniGroupIds: '579639' });
+  await ext.run();                                   // quét toàn bộ lần đầu
+  resetCalls(ext);
+  const r = await ext.run();                         // phát hiện + chuyển chế độ
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(omniGets(ext).length, 1);
+  assert.ok(ext.log().some(l => /chuyển sang đọc khách mới tạo/.test(l.action)));
+  assert.notStrictEqual(ext.status().state, 'warn', 'không báo cảnh báo – đây là chế độ hoạt động bình thường');
+  resetCalls(ext);
+  const r2 = await ext.run();
+  assert.strictEqual(r2.mode, 'incremental');
+  assert.strictEqual(omniGets(ext).length, 1, 'chỉ đọc trang đầu');
+  assert.doesNotMatch(omniGets(ext)[0], /modified_on_min/);
+});
+
+test('Omni thật: khách MỚI tạo trên Omni được bắt ngay lượt kế tiếp (gợi ý + ghép + đẩy lên Web)', async () => {
+  const ext = loadExtension();
+  realOmni(ext);
+  ext.openOmniTab();
+  bigShop(ext, 200);
+  await ext.configure({ skipOmniGroupIds: '579639' });
+  await ext.run(); await ext.run();                  // quét đầu + chuyển chế độ
+  tick(3600 * 1000);
+  const fresh = ext.omni.add({ name: 'Samsung Display Vietnam', phone_number: '0222333444', customer_group_id: 2 });
+  resetCalls(ext);
+  await ext.run();
+  assert.strictEqual(omniGets(ext).length, 1);
+  const s = await ext.send({ cmd: 'searchOmni', q: 'samsung' });
+  assert.strictEqual(s.items[0].omni_id, String(fresh.id), 'có ngay trong khung gợi ý');
+  assert.ok(pairs(ext).some(p => p.omni_id === String(fresh.id)), 'đã đẩy lên Web và ghép cặp');
+});
+
+test('Omni thật: sửa thông tin khách CŨ trên Omni → cập nhật ở lượt quét toàn bộ (mỗi 6 giờ), không sót', async () => {
+  const ext = loadExtension();
+  realOmni(ext);
+  ext.openOmniTab();
+  const old = ext.omni.add({ name: 'Intel', phone_number: '0281234567' });
+  bigShop(ext, 120);
+  await ext.configure({});
+  await ext.run(); ext.connector.run(); await ext.run();
+  ext.omni.edit(old.id, { email: 'buyer@intel.example' });
+  await ext.run();                                   // lượt thường: chưa thấy (khách cũ không nằm trang đầu)
+  tick(6 * 3600 * 1000);
+  const r = await ext.run();
+  assert.strictEqual(r.mode, 'full', 'đủ 6 giờ → quét toàn bộ');
+  const intelWeb = [...ext.web.db.values()].find(w => w.first_name === 'Intel');
+  assert.strictEqual(intelWeb.email, 'buyer@intel.example', 'đã cập nhật lên Web');
+});
+
+test('Omni thật: chiều Web → Omni vẫn cập nhật trong vòng 10 phút (Sapo Web hỗ trợ lọc theo thay đổi)', async () => {
+  const ext = loadExtension();
+  realOmni(ext);
+  ext.openOmniTab();
+  const W = ext.web.add({ first_name: 'Jabil', phone: '0909000111' }); ext.connector.run();
+  bigShop(ext, 60);
+  await ext.configure({});
+  await ext.run(); await ext.run();
+  ext.web.edit(W.id, { email: 'new@jabil.example' });
+  const r = await ext.run();
+  assert.strictEqual(r.mode, 'incremental');
+  const jabilOmni = [...ext.omni.db.values()].find(c => c.name === 'Jabil');
+  assert.strictEqual(jabilOmni.email, 'new@jabil.example');
+});

@@ -40,7 +40,7 @@ function makeServer(kind) {
       Object.assign(rec, patch, { modified_on: tick() });
       return rec;
     },
-    callAt: [], ignoreSince: false,
+    callAt: [], ignoreSince: false, newestFirst: false,
     handle(method, url, payload) {
       srv.calls.push(method + ' ' + url);
       srv.callAt.push(clock);
@@ -51,6 +51,7 @@ function makeServer(kind) {
         const limit = Math.min(Number(u.searchParams.get('limit') || 50), kind === 'omni' ? 50 : 250);
         const page = Number(u.searchParams.get('page') || 1);
         let all = [...db.values()];
+        if (srv.newestFirst) all = all.slice().sort((a, b) => b.id - a.id);   // như Sapo Omni thật: khách mới tạo lên đầu
         const since = u.searchParams.get('modified_on_min');
         if (since && !srv.ignoreSince) all = all.filter(c => Date.parse(c.modified_on) >= Date.parse(since));
         const slice = all.slice((page - 1) * limit, page * limit);
