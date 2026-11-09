@@ -274,7 +274,7 @@ async function fixOrders(c, cache, cfg, dry, log, now) {
     if (p.action === 'ok') { st.ok++; remember(o, 'ok'); continue; }
     if (p.action === 'no_master' || p.action === 'no_customer') {
       st.noMaster++; remember(o, p.action);
-      log.add('INFO', tag + 'Đơn Web giữ nguyên', p.from ? p.from.id : '', '', p.from ? p.from.name : '', o.code + ': ' + p.reason);
+      log.add('INFO', tag + 'Đơn Web đã đúng khách – giữ nguyên', p.from ? p.from.id : '', '', p.from ? p.from.name : '', o.code + ': ' + p.reason);
       continue;
     }
     if (p.action === 'ambiguous') {
@@ -318,7 +318,7 @@ async function fixOrders(c, cache, cfg, dry, log, now) {
 function orderSummary(f, dry) {
   if (!f) return '';
   return ' | ĐƠN WEB: ' + f.webOrders + ', ' + (dry ? 'sẽ chuyển về khách gốc: ' + f.planned : 'đã chuyển về khách gốc: ' + f.moved) +
-         ', cần xem tay: ' + f.ambiguous + ', khách mới giữ nguyên: ' + f.noMaster + (f.errors ? ', lỗi: ' + f.errors : '');
+         ', cần xem tay: ' + f.ambiguous + ', đã đúng khách: ' + (f.noMaster + f.ok) + (f.errors ? ', lỗi: ' + f.errors : '');
 }
 
 // ---------- Một lượt đồng bộ ----------

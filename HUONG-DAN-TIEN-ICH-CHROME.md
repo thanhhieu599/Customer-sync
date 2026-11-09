@@ -51,7 +51,7 @@ Sale tạo đơn trên Sapo Web → Sapo đẩy đơn về Omni, gắn vào khá
 | Tình huống | Tiện ích làm |
 |---|---|
 | Có **đúng 1** hồ sơ gốc (không tag "Web", tạo trước) | **Chuyển đơn về hồ sơ gốc**, ghi nhật ký *"Đã chuyển đơn về khách gốc"*, hiện thông báo |
-| Khách **hoàn toàn mới** (chưa có hồ sơ nào khác trên Omni) | Giữ nguyên đơn |
+| Khách chỉ có **1 hồ sơ** trên Omni (không có hồ sơ trùng) – kể cả khách lâu năm | Đơn đã ở đúng hồ sơ → giữ nguyên (nhật ký: *"Đơn Web đã đúng khách – giữ nguyên"*) |
 | **Nhiều** hồ sơ trùng SĐT/email, hoặc hồ sơ "gốc" lại tạo sau | **Không chuyển**, ghi cảnh báo *"Đơn Web cần xem tay"* kèm danh sách hồ sơ (báo 1 lần) |
 | Đơn tại quầy / kênh khác, đơn cũ hơn 24 giờ, đơn đã ở hồ sơ gốc | Không đụng tới |
 | Omni nhận lệnh nhưng không lưu | Báo lỗi, lượt sau thử lại |
@@ -253,3 +253,9 @@ Cài đặt, bảng ghép và nhật ký được giữ nguyên.
   logic đồng bộ là một, không phải làm lại.
 - Máy chạy tiện ích đang giữ phiên đăng nhập Omni: đặt mật khẩu Windows, không cài phần mềm lạ, không dùng hồ sơ Chrome này để duyệt web.
 - Không chia sẻ API key Sapo Web qua chat/email.
+
+## Đơn Web không về Omni (lỗi phía Sapo, không phải tiện ích)
+
+Nếu đơn tạo trên Sapo Web không xuất hiện trên Omni: xem Omni → **Quản lý Omnichannel → Website** → danh sách đơn đồng bộ lỗi.
+Lỗi thường gặp: *"Đơn hàng có chứa sản phẩm chưa được đồng bộ về Omni"* → sản phẩm trên Web chưa liên kết với sản phẩm
+Omni (cùng SKU). Liên kết sản phẩm, rồi đồng bộ lại đơn. Phòng tránh: **tạo sản phẩm và phiên bản trên Omni**, không tạo trực tiếp trên Sapo Web.

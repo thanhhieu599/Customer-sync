@@ -398,7 +398,11 @@ var SyncCore = (function () {
       function others(k) { return k ? (byKey[k] || []).filter(function (c) { return c.id !== cur.id && c.active; }) : []; }
       var cands = others(phoneKey);
       if (!cands.length) cands = others(emailKey);
-      if (!cands.length) { out.push({ order: o, action: 'no_master', from: cur, reason: 'khách mới, chưa có hồ sơ gốc trên Omni' }); return; }
+      if (!cands.length) {
+        out.push({ order: o, action: 'no_master', from: cur,
+                   reason: 'khách chỉ có 1 hồ sơ trên Omni (không có hồ sơ trùng) – đơn đã ở đúng hồ sơ' });
+        return;
+      }
       var nonWeb = cands.filter(function (c) { return !c.webTag; });
       var master = nonWeb.length === 1 ? nonWeb[0] : (nonWeb.length === 0 && cands.length === 1 ? cands[0] : null);
       if (!master) {
